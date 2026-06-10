@@ -1,0 +1,12 @@
+{
+  "nonstop": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": ".agents/stop-hook.sh",
+        "timeout": 120,
+        "working_directory": "/Users/quypv/zobite/dev-life"
+      }
+    ]
+  }
+}
