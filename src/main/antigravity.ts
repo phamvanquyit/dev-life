@@ -135,7 +135,9 @@ export async function listConversations(): Promise<ConversationSummary[]> {
   const dbMappings = new Map<string, string>()
   try {
     const sqlite = getSqlite()
-    const rows = sqlite.prepare('SELECT conversation_id, project_name FROM antigravity_conversations').all() as {
+    const rows = sqlite
+      .prepare('SELECT conversation_id, project_name FROM antigravity_conversations')
+      .all() as {
       conversation_id: string
       project_name: string
     }[]
@@ -283,13 +285,7 @@ export async function getTranscript(
 ): Promise<TranscriptStep[]> {
   const { maxSteps = 100, onlyChat = true } = options
   const cleanId = conversationId.replace(/['"]/g, '').trim()
-  const transcriptPath = join(
-    BRAIN_DIR,
-    cleanId,
-    '.system_generated',
-    'logs',
-    'transcript.jsonl',
-  )
+  const transcriptPath = join(BRAIN_DIR, cleanId, '.system_generated', 'logs', 'transcript.jsonl')
 
   const steps: TranscriptStep[] = []
 
@@ -532,7 +528,9 @@ export async function newConversation(
       console.log(`[newConversation] Click project "+" button result: ${clickStatus}`)
 
       if (clickStatus !== 'clicked_plus') {
-        console.warn(`[newConversation] Could not click "+" button (status: ${clickStatus}). Falling back to window.location.href.`);
+        console.warn(
+          `[newConversation] Could not click "+" button (status: ${clickStatus}). Falling back to window.location.href.`,
+        )
         // Fallback: Navigate to new conversation for this project directly
         await send('Runtime.evaluate', {
           expression: `window.location.href = '/c/new?section=${sectionId}'`,
@@ -582,11 +580,18 @@ export async function newConversation(
         await new Promise((r) => setTimeout(r, 500))
       }
 
-      console.log(`[newConversation] Model selector check: found=${modelBtnFound}, name="${currentModelName}"`)
+      console.log(
+        `[newConversation] Model selector check: found=${modelBtnFound}, name="${currentModelName}"`,
+      )
 
-      if (modelBtnFound && (currentModelName.includes('Claude') || currentModelName.includes('Claude Opus'))) {
-        console.log(`[newConversation] Found model selector: "${currentModelName}". Clicking to open dropdown...`)
-        
+      if (
+        modelBtnFound &&
+        (currentModelName.includes('Claude') || currentModelName.includes('Claude Opus'))
+      ) {
+        console.log(
+          `[newConversation] Found model selector: "${currentModelName}". Clicking to open dropdown...`,
+        )
+
         // Open dropdown by clicking the model selector button
         const clickSelectorRes = await send('Runtime.evaluate', {
           expression: `(function() {
@@ -599,7 +604,9 @@ export async function newConversation(
           })()`,
           returnByValue: true,
         })
-        console.log(`[newConversation] Click selector result: ${clickSelectorRes.result?.result?.value}`)
+        console.log(
+          `[newConversation] Click selector result: ${clickSelectorRes.result?.result?.value}`,
+        )
 
         await new Promise((r) => setTimeout(r, 1200))
 
@@ -618,7 +625,9 @@ export async function newConversation(
           })()`,
           returnByValue: true,
         })
-        console.log(`[newConversation] Select model result: ${selectModelRes.result?.result?.value}`)
+        console.log(
+          `[newConversation] Select model result: ${selectModelRes.result?.result?.value}`,
+        )
 
         // Wait for switch setup and quota warning to disappear
         await new Promise((r) => setTimeout(r, 2000))
@@ -706,11 +715,13 @@ export async function newConversation(
         conversationId = match[1]
         try {
           const sqlite = getSqlite()
-          sqlite.prepare(`
+          sqlite
+            .prepare(`
             INSERT INTO antigravity_conversations (conversation_id, project_name, synced_at)
             VALUES (?, ?, datetime('now'))
             ON CONFLICT(conversation_id) DO UPDATE SET project_name = excluded.project_name, synced_at = datetime('now')
-          `).run(conversationId, projectName)
+          `)
+            .run(conversationId, projectName)
         } catch (dbErr) {
           console.error('[newConversation] Failed to save conversation mapping to DB:', dbErr)
         }

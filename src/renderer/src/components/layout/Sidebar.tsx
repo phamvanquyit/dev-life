@@ -64,9 +64,12 @@ export default function Sidebar({ activeTool, onToolSelect, collapsed }: Sidebar
   const [searchFocused, setSearchFocused] = useState(false)
 
   const filteredTools = useMemo(() => {
-    if (!search.trim()) return tools
+    const visibleTools = tools.filter(
+      (t) => t.id !== 'system-cleaner' && t.id !== 'audio-translator',
+    )
+    if (!search.trim()) return visibleTools
     const q = search.toLowerCase()
-    return tools.filter((t) => t.label.toLowerCase().includes(q))
+    return visibleTools.filter((t) => t.label.toLowerCase().includes(q))
   }, [search])
 
   const grouped = useMemo(() => {

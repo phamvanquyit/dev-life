@@ -49,11 +49,11 @@ echo "=== Biome, TypeScript & Build Hook Finished at $(date) ===" >> "$LOG_FILE"
 
 # Output the expected JSON decision to stdout for the agent platform
 if [ $BIOME_EXIT_CODE -ne 0 ]; then
-  echo '{"decision": "continue", "reason": "Biome check found errors or warnings. Please check .agents/stop-hook.log and fix them."}'
+  echo '{"decision": "block", "reason": "Biome check found errors or warnings. Please check .agents/stop-hook.log and fix them."}'
 elif [ $TSC_EXIT_CODE -ne 0 ]; then
-  echo '{"decision": "continue", "reason": "TypeScript type checking failed. Please check .agents/stop-hook.log for errors and run '\''bun x tsc --build --noEmit'\'' to fix them."}'
+  echo '{"decision": "block", "reason": "TypeScript type checking failed. Please check .agents/stop-hook.log for errors and run '\''bun x tsc --build --noEmit'\'' to fix them."}'
 elif [ $BUILD_EXIT_CODE -ne 0 ]; then
-  echo '{"decision": "continue", "reason": "Build failed. Please check .agents/stop-hook.log for errors and run '\''bun run build'\'' to fix them."}'
+  echo '{"decision": "block", "reason": "Build failed. Please check .agents/stop-hook.log for errors and run '\''bun run build'\'' to fix them."}'
 else
   echo '{"decision": "stop"}'
 fi
