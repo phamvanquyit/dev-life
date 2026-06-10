@@ -45,6 +45,8 @@ const api = {
   typeMessageCDP: (message: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('antigravity:type-message-cdp', message),
   openAntigravityApp: (): Promise<void> => ipcRenderer.invoke('antigravity:open-app'),
+  ensureAntigravityRunning: (): Promise<{ status: 'already-running' | 'launched' }> =>
+    ipcRenderer.invoke('antigravity:ensure-running'),
   syncAntigravityProjects: (): Promise<{ success: boolean; count: number; error?: string }> =>
     ipcRenderer.invoke('antigravity:sync-projects'),
   getAntigravityProjectsFromDb: (): Promise<

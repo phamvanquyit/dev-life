@@ -82,6 +82,9 @@ export default function Sidebar({ activeTool, onToolSelect, collapsed }: Sidebar
   }, [filteredTools])
 
   const handleClick = (id: string) => {
+    if (id === 'antigravity-manager') {
+      window.api?.ensureAntigravityRunning?.()
+    }
     onToolSelect(id)
   }
 

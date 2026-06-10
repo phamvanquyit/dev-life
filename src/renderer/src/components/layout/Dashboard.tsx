@@ -95,7 +95,12 @@ export default function Dashboard({ onToolSelect }: DashboardProps) {
             <div
               key={tool.id}
               className="dashboard-tool-card"
-              onClick={() => onToolSelect(tool.id)}
+              onClick={() => {
+                if (tool.id === 'antigravity-manager') {
+                  window.api?.ensureAntigravityRunning?.()
+                }
+                onToolSelect(tool.id)
+              }}
               style={{ animationDelay: `${index * 80 + 200}ms` }}
             >
               <div className="dashboard-tool-icon" style={{ color: tool.accent }}>

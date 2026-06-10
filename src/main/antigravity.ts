@@ -739,10 +739,45 @@ export async function newConversation(
 }
 
 /**
- * Open the Antigravity Standalone app
+ * Check if Antigravity process is currently running
+ */
+async function isAntigravityProcessRunning(): Promise<boolean> {
+  try {
+    const { execSync } = await import('node:child_process')
+    execSync('pgrep -x Antigravity', { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Kill the running Antigravity process
+ */
+async function killAntigravityProcess(): Promise<void> {
+  try {
+    const { execSync } = await import('node:child_process')
+    execSync('pkill -x Antigravity', { stdio: 'ignore' })
+    // Wait for process to fully exit
+    await new Promise((r) => setTimeout(r, 1500))
+  } catch {
+    // Process may have already exited
+  }
+}
+
+/**
+ * Open the Antigravity Standalone app with CDP debug port.
+ * If already running without debug mode, kill and relaunch.
  */
 async function openAntigravityApp(): Promise<void> {
   try {
+    const isRunning = await isAntigravityProcessRunning()
+    if (isRunning) {
+      // Process is running but caller determined CDP is not available,
+      // so kill it first to relaunch with debug port
+      console.log('[antigravity] App running without CDP, killing to relaunch with debug port...')
+      await killAntigravityProcess()
+    }
     const { exec } = await import('node:child_process')
     exec(`open -a "Antigravity" --args --remote-debugging-port=${CDP_PORT}`)
   } catch (error) {
@@ -1342,6 +1377,20 @@ export function setupAntigravityIPC(): void {
     return openAntigravityApp()
   })
 
+  ipcMain.handle('antigravity:ensure-running', async () => {
+    try {
+      const target = await resolveCDPTarget()
+      if (target) {
+        return { status: 'already-running' as const }
+      }
+      await openAntigravityApp()
+      return { status: 'launched' as const }
+    } catch {
+      await openAntigravityApp()
+      return { status: 'launched' as const }
+    }
+  })
+
   ipcMain.handle('antigravity:select-folder', async () => {
     try {
       const result = await dialog.showOpenDialog({
@@ -1379,8 +1428,30 @@ export function setupAntigravityIPC(): void {
     return getProjectsFromDb()
   })
 
-  // Auto-sync projects on startup (after a short delay)
-  setTimeout(() => syncProjectsToDb().catch(() => {}), 3000)
+  // On startup: ensure Antigravity is running with CDP, then sync projects
+  setTimeout(async () => {
+    try {
+      let target = await resolveCDPTarget()
+      if (!target) {
+        console.log('[startup] Antigravity not running, launching with CDP port...')
+        await openAntigravityApp()
+        // Poll for CDP to become available (up to 15s)
+        for (let i = 0; i < 30; i++) {
+          await new Promise((r) => setTimeout(r, 500))
+          target = await resolveCDPTarget()
+          if (target) break
+        }
+      }
+      if (target) {
+        console.log('[startup] Antigravity CDP ready, syncing projects...')
+        await syncProjectsToDb()
+      } else {
+        console.warn('[startup] Antigravity CDP not available after waiting, skipping sync')
+      }
+    } catch (err) {
+      console.error('[startup] Failed to ensure Antigravity running:', err)
+    }
+  }, 2000)
 }
 
 /**
