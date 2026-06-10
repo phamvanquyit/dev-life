@@ -1,10 +1,4 @@
-import {
-  CloudServerOutlined,
-  LaptopOutlined,
-  RocketOutlined,
-  ThunderboltOutlined,
-  TranslationOutlined,
-} from '@ant-design/icons'
+import { CloudServerOutlined, RocketOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { useEffect, useState } from 'react'
 
 interface DashboardProps {
@@ -25,20 +19,6 @@ const quickTools = [
     label: 'AI Proxy',
     desc: 'OpenAI-compatible proxy for Gemini',
     accent: '#2fd6a1',
-  },
-  {
-    id: 'system-cleaner',
-    icon: <LaptopOutlined />,
-    label: 'System Cleaner',
-    desc: 'Scan & clean disk space',
-    accent: '#10b981',
-  },
-  {
-    id: 'audio-translator',
-    icon: <TranslationOutlined />,
-    label: 'Audio Translator',
-    desc: 'Nghe tiếng Anh → Dịch tiếng Việt',
-    accent: '#00d992',
   },
 ]
 
