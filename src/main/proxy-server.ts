@@ -11,7 +11,6 @@ import {
   listConversations,
   newConversation,
   sendMessage,
-  syncProjectsToDb,
 } from './antigravity'
 import { getSqlite } from './db'
 
@@ -1201,12 +1200,6 @@ async function startProxyServer(): Promise<{ success: boolean; port?: number; er
     })
 
     // ─── Antigravity API ───────────────────────────────────────────────────────
-
-    // POST /antigravity/sync — trigger project sync
-    fastify.post('/antigravity/sync', async () => {
-      const result = await syncProjectsToDb()
-      return result
-    })
 
     // GET /antigravity/projects — list projects (from DB) with their conversations
     fastify.get('/antigravity/projects', async () => {

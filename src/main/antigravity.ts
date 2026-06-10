@@ -1139,7 +1139,9 @@ async function listProjectsViaCDP(): Promise<
     conversations: { title: string; time: string; id: string }[]
   }[]
 > {
+  const t0 = Date.now()
   // Step 1: Scrape project list from DOM
+  console.log('[listProjectsCDP] Step 1: Scraping project list from DOM...')
   const scrapeJs = `
     (function() {
       var nodes = document.querySelectorAll('div.text-sm.font-medium.truncate.m-0');
@@ -1170,28 +1172,37 @@ async function listProjectsViaCDP(): Promise<
       conversationCount: number
       conversations: { title: string; time: string; id: string }[]
     }[]
-
-    // Step 2: Resolve conversation IDs (prefer DOM id, fallback to filesystem/cache lookup)
-    const projects = await Promise.all(
-      scraped.map(async (proj) => {
-        const convsWithIds = await Promise.all(
-          proj.conversations.map(async (conv) => {
-            if (conv.id) {
-              return conv
-            }
-            const id = await findConversationIdByTitle(conv.title)
-            return { ...conv, id: id || '' }
-          }),
-        )
-        return { ...proj, projectId: '', conversations: convsWithIds }
-      }),
+    console.log(
+      `[listProjectsCDP] Step 1 done in ${Date.now() - t0}ms — found ${scraped.length} projects: ${scraped.map((p) => p.name).join(', ')}`,
     )
 
+    if (scraped.length === 0) {
+      console.warn(
+        '[listProjectsCDP] No projects found in DOM. Antigravity sidebar may not be loaded or DOM selectors changed.',
+      )
+      return []
+    }
+
+    // Step 2: Map projects directly — conversation IDs come from DOM data-testid only
+    const projects = scraped.map((proj) => ({
+      ...proj,
+      projectId: '',
+      conversations: proj.conversations,
+    }))
+
     // Step 3: Resolve project section IDs by clicking first conversation of each project
+    const t2 = Date.now()
+    const projectsWithConvs = projects.filter((p) => p.conversations.length > 0)
+    console.log(
+      `[listProjectsCDP] Step 3: Resolving section IDs for ${projectsWithConvs.length} projects...`,
+    )
+
     for (const proj of projects) {
       if (proj.conversations.length === 0) continue
+      const tp = Date.now()
       try {
         const convTitle = proj.conversations[0].title
+        // Timeout per project: 8s (instead of default 30s)
         await cdpSession(async (send) => {
           await send('Runtime.enable')
           await send('Runtime.evaluate', {
@@ -1216,17 +1227,26 @@ async function listProjectsViaCDP(): Promise<
           const m = url.match(/section=([0-9a-f-]+)/)
           if (m) {
             proj.projectId = m[1]
-            console.log(`[listProjectsCDP] ${proj.name} -> section: ${proj.projectId}`)
           }
-        })
-      } catch {
-        // ignore
+        }, 8000)
+        console.log(
+          `[listProjectsCDP]   ${proj.name} -> section: ${proj.projectId || '(none)'} (${Date.now() - tp}ms)`,
+        )
+      } catch (err) {
+        console.warn(
+          `[listProjectsCDP]   ${proj.name} -> FAILED (${Date.now() - tp}ms):`,
+          err instanceof Error ? err.message : err,
+        )
       }
     }
+    console.log(`[listProjectsCDP] Step 3 done in ${Date.now() - t2}ms`)
+    console.log(
+      `[listProjectsCDP] Total: ${Date.now() - t0}ms — ${projects.length} projects synced`,
+    )
 
     return projects
   } catch (err) {
-    console.error('listProjectsViaCDP failed:', err)
+    console.error(`[listProjectsCDP] FAILED after ${Date.now() - t0}ms:`, err)
     return []
   }
 }
