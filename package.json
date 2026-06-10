@@ -75,7 +75,8 @@
       "buildResources": "build"
     },
     "files": [
-      "out/**/*"
+      "out/**/*",
+      "resources/**/*"
     ]
   }
 }

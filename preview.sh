@@ -6,6 +6,9 @@ set -e
 # Export DEV_LIFE_PREVIEW to separate ports and directories
 export DEV_LIFE_PREVIEW=true
 
+# Skip code signing for preview builds (we use xattr -cr instead)
+export CSC_IDENTITY_AUTO_DISCOVERY=false
+
 # Determine package manager
 if command -v bun &> /dev/null; then
   PKG_MANAGER="bun run"
@@ -30,6 +33,19 @@ done
 if [ -z "$APP_PATH" ]; then
   echo "❌ Error: Dev Life.app not found in dist directory!"
   exit 1
+fi
+
+# Copy to Applications directory as "Dev Life Preview.app" and run xattr
+TARGET_APP="/Applications/Dev Life Preview.app"
+if [ "$(uname)" == "Darwin" ]; then
+  echo "📂 Copying to $TARGET_APP (Overwriting if exists)..."
+  rm -rf "$TARGET_APP"
+  cp -R "$APP_PATH" "$TARGET_APP"
+  
+  echo "🔒 Removing macOS quarantine attributes (Gatekeeper Bypass)..."
+  xattr -cr "$TARGET_APP"
+  
+  APP_PATH="$TARGET_APP"
 fi
 
 echo "✨ Running application in preview mode (Production build, port 18982, 'Dev Life Preview' data directory)..."

@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
-import { BrowserWindow, ipcMain, nativeImage, screen, Tray } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from 'electron'
 
 let tray: Tray | null = null
 let trayWindow: BrowserWindow | null = null
@@ -66,22 +66,45 @@ function positionWindowBelowTray(win: BrowserWindow, trayBounds: Electron.Rectan
   win.setPosition(clampedX, y, false)
 }
 
-export function createTray(): void {
+export function createTray(mainWindow?: BrowserWindow): void {
+  // Determine icon filename based on environment
+  let iconName = 'trayIconTemplate.png'
+  if (process.env.DEV_LIFE_PREVIEW === 'true') {
+    iconName = 'trayIconPreviewTemplate.png'
+  } else if (is.dev) {
+    iconName = 'trayIconDevTemplate.png'
+  }
+
   // Load template icon
-  let iconPath = join(__dirname, '../../resources/trayIconTemplate.png')
+  let iconPath = join(__dirname, `../../resources/${iconName}`)
   try {
     const testIcon = nativeImage.createFromPath(iconPath)
     if (testIcon.isEmpty()) {
-      iconPath = join(process.resourcesPath, 'trayIconTemplate.png')
+      iconPath = join(process.resourcesPath, iconName)
     }
   } catch {
-    iconPath = join(process.resourcesPath, 'trayIconTemplate.png')
+    iconPath = join(process.resourcesPath, iconName)
   }
-  const icon = nativeImage.createFromPath(iconPath)
+
+  // Fallback to default template if the specific icon is empty
+  let icon = nativeImage.createFromPath(iconPath)
+  if (icon.isEmpty() && iconName !== 'trayIconTemplate.png') {
+    let fallbackPath = join(__dirname, '../../resources/trayIconTemplate.png')
+    try {
+      const testFallback = nativeImage.createFromPath(fallbackPath)
+      if (testFallback.isEmpty()) {
+        fallbackPath = join(process.resourcesPath, 'trayIconTemplate.png')
+      }
+    } catch {
+      fallbackPath = join(process.resourcesPath, 'trayIconTemplate.png')
+    }
+    icon = nativeImage.createFromPath(fallbackPath)
+  }
+
   icon.setTemplateImage(true)
 
   tray = new Tray(icon)
-  tray.setToolTip('Dev Life')
+  tray.setToolTip(process.env.DEV_LIFE_PREVIEW === 'true' ? 'Dev Life Preview' : 'Dev Life')
   tray.setIgnoreDoubleClickEvents(true)
 
   // Create the panel window
@@ -122,6 +145,33 @@ export function createTray(): void {
       trayWindow.show()
       trayWindow.focus()
     }
+  })
+
+  // Right-click context menu
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Open',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.quit()
+      },
+    },
+  ])
+
+  tray.on('right-click', () => {
+    if (trayWindow?.isVisible()) {
+      trayWindow.hide()
+    }
+    tray?.popUpContextMenu(contextMenu)
   })
 }
 

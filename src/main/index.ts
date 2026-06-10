@@ -48,11 +48,21 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
+try {
+  if (app.getPath('exe').includes('Dev Life Preview.app')) {
+    process.env.DEV_LIFE_PREVIEW = 'true'
+  }
+} catch (e) {
+  console.error('Failed to detect app path:', e)
+}
+
 if (process.env.DEV_LIFE_PREVIEW === 'true') {
   app.setName('Dev Life Preview')
 } else {
   app.setName('Dev Life')
 }
+
+let forceQuit = false
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.zobite.dev-life')
@@ -63,10 +73,12 @@ app.whenReady().then(() => {
 
   const mainWindow = createWindow()
 
-  // Quit app fully when main window is closed
-  mainWindow.on('close', () => {
-    destroyTray()
-    app.quit()
+  // Hide window instead of quitting when clicking the X button
+  mainWindow.on('close', (e) => {
+    if (!forceQuit) {
+      e.preventDefault()
+      mainWindow.hide()
+    }
   })
 
   // Setup menu
@@ -80,7 +92,7 @@ app.whenReady().then(() => {
   )
 
   // Setup tray icon with popup panel
-  createTray()
+  createTray(mainWindow)
 
   // IPC handlers
   ipcMain.handle('get-app-version', () => app.getVersion())
@@ -97,18 +109,22 @@ app.whenReady().then(() => {
     .catch((err) => console.error('[startup] Token sync / proxy start failed:', err))
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    const allWindows = BrowserWindow.getAllWindows()
+    if (allWindows.length === 0) {
       createWindow()
+    } else {
+      // Re-show the hidden main window when clicking the dock icon
+      mainWindow.show()
     }
   })
 })
 
 app.on('window-all-closed', () => {
-  destroyTray()
-  app.quit()
+  // Do nothing — keep app running in background with tray
 })
 
 app.on('before-quit', () => {
+  forceQuit = true
   destroyTray()
 })
 
