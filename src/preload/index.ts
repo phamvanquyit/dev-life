@@ -62,6 +62,12 @@ const api = {
     ipcRenderer.on('toggle-sidebar', handler)
     return () => ipcRenderer.removeListener('toggle-sidebar', handler)
   },
+  isTrayVisible: (): Promise<boolean> => ipcRenderer.invoke('tray:is-visible'),
+  onTrayVisibilityChange: (callback: (isVisible: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, isVisible: boolean) => callback(isVisible)
+    ipcRenderer.on('tray-visibility-change', handler)
+    return () => ipcRenderer.removeListener('tray-visibility-change', handler)
+  },
   selectFolder: (): Promise<string | null> => ipcRenderer.invoke('antigravity:select-folder'),
   // System Cleaner
   getDiskOverview: (): Promise<{

@@ -1,14 +1,8 @@
-import {
-  AudioOutlined,
-  ClearOutlined,
-  LoadingOutlined,
-  PauseCircleOutlined,
-  PlayCircleOutlined,
-  SettingOutlined,
-  SoundOutlined,
-} from '@ant-design/icons'
 import { Button, Tooltip } from 'antd'
-import { useCallback, useRef, useState } from 'react'
+import gsap from 'gsap'
+import { Eraser, Loader2, Mic, PauseCircle, PlayCircle, Settings, Volume2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useBtnGlow, useRecordingPulse, useSlideDown } from '../../hooks/useAnimations'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types & Constants
@@ -65,6 +59,66 @@ function float32ToInt16(float32Array: Float32Array): ArrayBuffer {
 
 // ────────────────────────────────────────────────────────────────────────────
 // Component
+// ── Sub-component for animated transcript entries ────────────────────────
+function TranscriptEntryItem({ entry, variant }: { entry: TranscriptEntry; variant: 'en' | 'vi' }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Slide-in animation on mount
+  useEffect(() => {
+    if (!ref.current) return
+    gsap.fromTo(
+      ref.current,
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, duration: 0.35, ease: 'back.out(1.7)' },
+    )
+  }, [])
+
+  // Loading pulse for processing entries
+  useEffect(() => {
+    if (!ref.current || entry.status !== 'processing') return
+    const tween = gsap.to(ref.current, {
+      opacity: 0.6,
+      duration: 0.75,
+      repeat: -1,
+      yoyo: true,
+      ease: 'sine.inOut',
+    })
+    return () => {
+      tween.kill()
+      if (ref.current) gsap.set(ref.current, { opacity: 1 })
+    }
+  }, [entry.status])
+
+  const isEn = variant === 'en'
+
+  return (
+    <div
+      ref={ref}
+      className={`py-2.5 px-3.5 bg-[var(--color-canvas-soft)] rounded-[var(--radius-sm)] border border-transparent transition-[border-color] duration-200 hover:border-[var(--color-hairline)] ${entry.status === 'processing' ? 'border-[rgba(0,217,146,0.15)]' : ''} ${entry.status === 'error' ? 'border-[rgba(255,107,107,0.15)]' : ''}`}
+    >
+      <div className="text-[10px] text-[var(--color-mute)] font-[var(--font-mono)] mb-1 tracking-[0.3px]">
+        {entry.timestamp}
+      </div>
+      <div
+        className={`text-sm leading-[1.6] break-words ${isEn ? 'text-[var(--color-ink)]' : 'text-[rgba(242,242,242,0.9)]'}`}
+      >
+        {entry.status === 'processing' && (
+          <span className="flex items-center gap-1.5 text-[var(--color-primary)] text-xs font-medium">
+            <Loader2 size={14} className="animate-spin" /> {isEn ? 'Đang nhận diện…' : 'Đang dịch…'}
+          </span>
+        )}
+        {entry.status === 'done' && (isEn ? entry.english : entry.vietnamese || '…')}
+        {entry.status === 'error' &&
+          (isEn ? (
+            <span className="text-[var(--color-error)] text-xs">❌ {entry.error}</span>
+          ) : (
+            <span className="text-[var(--color-error)] text-xs">—</span>
+          ))}
+      </div>
+    </div>
+  )
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 export default function AudioTranslator() {
   // ── State ────────────────────────────────────────────────────
@@ -90,6 +144,11 @@ export default function AudioTranslator() {
   const wsRef = useRef<WebSocket | null>(null)
   const vadRef = useRef<any>(null)
   const lastUiUpdateRef = useRef(0)
+
+  // GSAP animation refs
+  const recordingDotRef = useRecordingPulse(vadActive)
+  const stopBtnRef = useBtnGlow(isRecording)
+  const settingsRef = useSlideDown(showSettings)
 
   // ── Scroll helper ────────────────────────────────────────────
   const scrollToBottom = useCallback(() => {
@@ -306,54 +365,45 @@ export default function AudioTranslator() {
 
   // ── Render ───────────────────────────────────────────────────
   return (
-    <div className="at-page">
+    <div className="flex flex-col h-full gap-4 max-w-[1400px] mx-auto w-full">
       {/* Controls */}
-      <div className="at-controls">
-        <div className="at-controls-top">
-          <div className="at-mode-tabs">
+      <div className="bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-[var(--radius-md)] py-4 px-5 flex flex-col gap-3 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex gap-0.5 bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-[var(--radius-sm)] p-[3px] shrink-0">
             <button
               type="button"
-              className={`at-mode-tab ${mode === 'system' ? 'active' : ''}`}
+              className={`py-[7px] px-4 rounded border-none text-xs font-medium cursor-pointer transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap font-[var(--font-sans)] ${mode === 'system' ? 'bg-[var(--color-primary)] text-[var(--color-on-primary)]' : 'bg-transparent text-[var(--color-body)] hover:text-[var(--color-ink)] hover:bg-[rgba(255,255,255,0.04)]'} disabled:opacity-50 disabled:cursor-not-allowed`}
               onClick={() => !isRecording && setMode('system')}
               disabled={isRecording}
             >
-              <SoundOutlined /> System Audio
+              <Volume2 size={14} /> System Audio
             </button>
             <button
               type="button"
-              className={`at-mode-tab ${mode === 'mic' ? 'active' : ''}`}
+              className={`py-[7px] px-4 rounded border-none text-xs font-medium cursor-pointer transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap font-[var(--font-sans)] ${mode === 'mic' ? 'bg-[var(--color-primary)] text-[var(--color-on-primary)]' : 'bg-transparent text-[var(--color-body)] hover:text-[var(--color-ink)] hover:bg-[rgba(255,255,255,0.04)]'} disabled:opacity-50 disabled:cursor-not-allowed`}
               onClick={() => !isRecording && setMode('mic')}
               disabled={isRecording}
             >
-              <AudioOutlined /> Microphone
+              <Mic size={14} /> Microphone
             </button>
           </div>
 
-          <div className="at-actions">
+          <div className="flex gap-1 ml-auto">
             {isRecording ? (
-              <Button
-                type="primary"
-                danger
-                icon={<PauseCircleOutlined />}
-                onClick={handleStop}
-                className="at-stop-btn"
-              >
-                Dừng
-              </Button>
+              <span ref={stopBtnRef as any}>
+                <Button type="primary" danger icon={<PauseCircle size={14} />} onClick={handleStop}>
+                  Dừng
+                </Button>
+              </span>
             ) : (
-              <Button
-                type="primary"
-                icon={<PlayCircleOutlined />}
-                onClick={handleStart}
-                className="at-start-btn"
-              >
+              <Button type="primary" icon={<PlayCircle size={14} />} onClick={handleStart}>
                 Bắt đầu
               </Button>
             )}
             <Tooltip title="Cấu hình thu âm">
               <Button
                 type={showSettings ? 'primary' : 'default'}
-                icon={<SettingOutlined />}
+                icon={<Settings size={14} />}
                 onClick={() => setShowSettings(!showSettings)}
                 style={
                   showSettings
@@ -365,7 +415,7 @@ export default function AudioTranslator() {
             <Tooltip title="Xóa transcript">
               <Button
                 type="text"
-                icon={<ClearOutlined />}
+                icon={<Eraser size={14} />}
                 onClick={handleClear}
                 disabled={entries.length === 0}
                 style={{ color: 'var(--color-text-muted)' }}
@@ -375,53 +425,57 @@ export default function AudioTranslator() {
         </div>
 
         {/* Mode description */}
-        <div className="at-mode-desc">
+        <div className="flex items-center gap-2 text-xs text-[var(--color-mute)] py-2 px-3 bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-[var(--radius-sm)]">
           {mode === 'system' ? (
             <>
-              <SoundOutlined style={{ color: 'var(--color-accent)' }} />
+              <Volume2 size={14} style={{ color: 'var(--color-accent)' }} />
               <span>
                 Capture toàn bộ âm thanh hệ thống — Chrome, Zoom, Google Meet, và tất cả app khác.
               </span>
             </>
           ) : (
             <>
-              <AudioOutlined style={{ color: 'var(--color-accent)' }} />
+              <Mic size={14} style={{ color: 'var(--color-accent)' }} />
               <span>Capture giọng nói của bạn qua microphone.</span>
             </>
           )}
         </div>
 
         {/* Active STT Engine Status */}
-        <div className="at-api-key-section">
-          <div className="at-api-key-header">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-1.5 text-xs text-[var(--color-body)]">
             {wsStatus === 'disconnected' && (
               <>
-                <SoundOutlined style={{ color: 'var(--color-text-muted)' }} />
-                <span className="at-api-key-label" style={{ color: 'var(--color-text-muted)' }}>
+                <Volume2 size={14} style={{ color: 'var(--color-text-muted)' }} />
+                <span className="font-medium" style={{ color: 'var(--color-text-muted)' }}>
                   Zobite STT Server: Chưa kết nối
                 </span>
               </>
             )}
             {wsStatus === 'connecting' && (
               <>
-                <LoadingOutlined style={{ color: 'var(--color-accent)' }} />
-                <span className="at-api-key-label" style={{ color: 'var(--color-accent)' }}>
+                <Loader2
+                  size={14}
+                  className="animate-spin"
+                  style={{ color: 'var(--color-accent)' }}
+                />
+                <span className="font-medium" style={{ color: 'var(--color-accent)' }}>
                   Zobite STT Server: Đang kết nối...
                 </span>
               </>
             )}
             {wsStatus === 'connected' && (
               <>
-                <SoundOutlined style={{ color: 'var(--color-success)' }} />
-                <span className="at-api-key-label" style={{ color: 'var(--color-success)' }}>
+                <Volume2 size={14} style={{ color: 'var(--color-success)' }} />
+                <span className="font-medium" style={{ color: 'var(--color-success)' }}>
                   Zobite STT Server: Đã kết nối ✓
                 </span>
               </>
             )}
             {wsStatus === 'error' && (
               <>
-                <SoundOutlined style={{ color: 'var(--color-danger)' }} />
-                <span className="at-api-key-label" style={{ color: 'var(--color-danger)' }}>
+                <Volume2 size={14} style={{ color: 'var(--color-danger)' }} />
+                <span className="font-medium" style={{ color: 'var(--color-danger)' }}>
                   Zobite STT Server: Lỗi kết nối ❌
                 </span>
               </>
@@ -431,13 +485,18 @@ export default function AudioTranslator() {
 
         {/* Settings Panel */}
         {showSettings && (
-          <div className="at-settings-panel">
-            <div className="at-settings-title">Cấu hình ghi âm & dịch (Silero VAD)</div>
+          <div
+            ref={settingsRef}
+            className="bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-[var(--radius-sm)] p-4 mt-2"
+          >
+            <div className="text-[11px] font-semibold text-[var(--color-mute)] mb-3 uppercase tracking-[2.52px] border-b border-[var(--color-hairline)] pb-1.5">
+              Cấu hình ghi âm & dịch (Silero VAD)
+            </div>
 
-            <div className="at-settings-grid">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Ngưỡng nhạy giọng nói */}
-              <div className="at-settings-item">
-                <span className="at-setting-label">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-[var(--color-body)]">
                   Ngưỡng nhạy giọng nói (VAD Threshold): <strong>{vadSpeechThreshold}</strong>
                 </span>
                 <input
@@ -445,24 +504,24 @@ export default function AudioTranslator() {
                   min="0.1"
                   max="0.9"
                   step="0.05"
-                  className="at-slider"
+                  className="appearance-none w-full h-1.5 rounded-[3px] bg-[var(--color-canvas)] outline-none my-2 border border-[var(--color-hairline)] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--color-primary)] [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-100 hover:[&::-webkit-slider-thumb]:scale-[1.2]"
                   value={vadSpeechThreshold}
                   onChange={(e) => setVadSpeechThreshold(Number.parseFloat(e.target.value))}
                 />
-                <div className="at-slider-ticks">
+                <div className="flex justify-between text-[9px] text-[var(--color-mute)] px-0.5">
                   <span>0.1 (Rất nhạy)</span>
                   <span>0.5 (Mặc định)</span>
                   <span>0.9 (Ít nhạy, lọc nhiễu tốt)</span>
                 </div>
-                <div className="at-setting-help">
+                <div className="text-[10px] text-[var(--color-mute)] leading-[1.4]">
                   Xác suất tối thiểu để Silero VAD nhận diện là giọng nói. Hãy tăng lên nếu tiếng ồn
                   nền bị nhận diện nhầm là giọng nói.
                 </div>
               </div>
 
               {/* Thời gian chờ im lặng (Gom câu) */}
-              <div className="at-settings-item">
-                <span className="at-setting-label">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-[var(--color-body)]">
                   Thời gian chờ im lặng (Redemption Time): <strong>{vadRedemptionMs} ms</strong>
                 </span>
                 <input
@@ -470,16 +529,16 @@ export default function AudioTranslator() {
                   min="300"
                   max="3000"
                   step="100"
-                  className="at-slider"
+                  className="appearance-none w-full h-1.5 rounded-[3px] bg-[var(--color-canvas)] outline-none my-2 border border-[var(--color-hairline)] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--color-primary)] [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-100 hover:[&::-webkit-slider-thumb]:scale-[1.2]"
                   value={vadRedemptionMs}
                   onChange={(e) => setVadRedemptionMs(Number.parseInt(e.target.value))}
                 />
-                <div className="at-slider-ticks">
+                <div className="flex justify-between text-[9px] text-[var(--color-mute)] px-0.5">
                   <span>300ms (Ngắt nhanh)</span>
                   <span>600ms (Mặc định)</span>
                   <span>3000ms (Gom câu dài)</span>
                 </div>
-                <div className="at-setting-help">
+                <div className="text-[10px] text-[var(--color-mute)] leading-[1.4]">
                   Khoảng thời gian im lặng tối thiểu để chốt câu và bắt đầu phân đoạn dịch mới. Hãy
                   giảm xuống nếu bạn thấy câu bị gom quá dài.
                 </div>
@@ -487,12 +546,17 @@ export default function AudioTranslator() {
 
               {/* Tín hiệu âm thanh đầu vào */}
               {isRecording && (
-                <div className="at-settings-item">
-                  <span className="at-setting-label">Tín hiệu âm thanh đầu vào:</span>
-                  <div className="at-threshold-visualizer" style={{ marginTop: 8 }}>
-                    <div className="at-threshold-visualizer-bar" style={{ width: `${volume}%` }} />
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-[var(--color-body)]">
+                    Tín hiệu âm thanh đầu vào:
+                  </span>
+                  <div className="relative h-2 bg-[var(--color-canvas)] rounded mt-2 overflow-visible border border-[var(--color-hairline)]">
+                    <div
+                      className="h-full bg-[var(--color-primary)] rounded transition-[width] duration-[80ms] linear"
+                      style={{ width: `${volume}%` }}
+                    />
                   </div>
-                  <div className="at-setting-help">
+                  <div className="text-[10px] text-[var(--color-mute)] leading-[1.4]">
                     Xem mức âm lượng sóng âm hiện tại đang được thu lên trình duyệt thời gian thực.
                   </div>
                 </div>
@@ -503,49 +567,49 @@ export default function AudioTranslator() {
 
         {/* Status bar with VAD info */}
         {(isRecording || processingCount > 0 || error) && (
-          <div className="at-status-bar">
+          <div className="flex gap-4 items-center flex-wrap pt-1.5">
             {isRecording && (
               <>
                 <div
-                  className={`at-status-item ${vadActive ? 'at-status-recording' : 'at-status-listening'}`}
+                  className={`flex items-center gap-1.5 text-xs ${vadActive ? 'text-[#ff4d4f] font-medium' : 'text-[var(--color-mute)] font-normal'}`}
                 >
                   {vadActive ? (
                     <>
-                      <span className="at-recording-dot" />
+                      <span
+                        ref={recordingDotRef}
+                        className="w-2 h-2 rounded-full bg-[#ff4d4f] shrink-0"
+                      />
                       <span>Đang thu âm…</span>
                     </>
                   ) : (
                     <>
-                      <AudioOutlined />
+                      <Mic size={14} />
                       <span>Lắng nghe…</span>
                     </>
                   )}
                 </div>
                 {/* Volume meter */}
-                <div className="at-volume-meter">
+                <div className="h-1 bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-sm overflow-hidden flex-1 min-w-[60px] max-w-[200px]">
                   <div
-                    className={`at-volume-bar ${vadActive ? 'speaking' : ''}`}
+                    className={`h-full rounded-sm transition-[width] duration-100 linear ${vadActive ? 'bg-[var(--color-primary)] shadow-[0_0_6px_rgba(0,217,146,0.4)]' : 'bg-[var(--color-mute)]'}`}
                     style={{ width: `${volume}%` }}
                   />
                 </div>
               </>
             )}
             {processingCount > 0 && (
-              <div className="at-status-item at-status-processing">
-                <span className="at-spinner" />
+              <div className="flex items-center gap-1.5 text-xs text-[var(--color-warning)]">
+                <span className="w-3 h-3 border-2 border-[var(--color-hairline)] border-t-[var(--color-warning)] rounded-full animate-spin shrink-0" />
                 <span>Đang xử lý {processingCount} đoạn…</span>
               </div>
             )}
             {trackInfo && isRecording && (
-              <div
-                className="at-status-item"
-                style={{ color: 'var(--color-text-muted)', fontSize: 10 }}
-              >
+              <div className="flex items-center gap-1.5 text-[10px] text-[var(--color-mute)]">
                 {trackInfo}
               </div>
             )}
             {error && (
-              <div className="at-status-item at-status-error">
+              <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-error)]">
                 <span>⚠ {error}</span>
               </div>
             )}
@@ -554,76 +618,46 @@ export default function AudioTranslator() {
       </div>
 
       {/* Transcript Area */}
-      <div className="at-transcript-area">
+      <div className="flex-1 grid grid-cols-2 min-h-0 bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-[var(--radius-md)] overflow-hidden">
         {/* English column */}
-        <div className="at-column">
-          <div className="at-column-header at-column-en">
-            <span className="at-flag">🇺🇸</span>
+        <div className="flex flex-col overflow-hidden min-h-0 border-r border-[var(--color-hairline)]">
+          <div className="py-2.5 px-4 border-b border-[var(--color-hairline)] text-[13px] font-semibold flex items-center gap-2 shrink-0 bg-[var(--color-canvas-soft)]">
+            <span className="text-base">🇺🇸</span>
             <span>English</span>
-            <span className="at-entry-count">
+            <span className="ml-auto text-[10px] font-normal text-[var(--color-mute)] bg-[var(--color-canvas)] px-1.5 py-px rounded-[var(--radius-md)] font-[var(--font-mono)]">
               {entries.filter((e) => e.status === 'done').length}
             </span>
           </div>
-          <div className="at-column-body" ref={enScrollRef}>
+          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 min-h-0" ref={enScrollRef}>
             {entries.length === 0 ? (
-              <div className="at-empty-state">
-                <SoundOutlined style={{ fontSize: 32, opacity: 0.2 }} />
+              <div className="flex flex-col items-center justify-center h-full text-[var(--color-mute)] text-[13px] gap-2 text-center py-10 px-5 select-none">
+                <Volume2 size={32} style={{ opacity: 0.2 }} />
                 <span>Transcript sẽ hiện ở đây</span>
-                <span className="at-empty-hint">Nhấn &quot;Bắt đầu&quot; để ghi âm</span>
+                <span className="text-[11px] opacity-60">Nhấn &quot;Bắt đầu&quot; để ghi âm</span>
               </div>
             ) : (
               entries.map((entry) => (
-                <div
-                  key={entry.id}
-                  className={`at-entry ${entry.status === 'processing' ? 'at-entry-loading' : ''} ${entry.status === 'error' ? 'at-entry-error' : ''}`}
-                >
-                  <div className="at-entry-time">{entry.timestamp}</div>
-                  <div className="at-entry-text">
-                    {entry.status === 'processing' && (
-                      <span className="at-live-indicator">
-                        <LoadingOutlined spin /> Đang nhận diện…
-                      </span>
-                    )}
-                    {entry.status === 'done' && entry.english}
-                    {entry.status === 'error' && (
-                      <span className="at-error-text">❌ {entry.error}</span>
-                    )}
-                  </div>
-                </div>
+                <TranscriptEntryItem key={entry.id} entry={entry} variant="en" />
               ))
             )}
           </div>
         </div>
 
         {/* Vietnamese column */}
-        <div className="at-column">
-          <div className="at-column-header at-column-vi">
-            <span className="at-flag">🇻🇳</span>
+        <div className="flex flex-col overflow-hidden min-h-0">
+          <div className="py-2.5 px-4 border-b border-[var(--color-hairline)] text-[13px] font-semibold flex items-center gap-2 shrink-0 bg-[var(--color-canvas-soft)]">
+            <span className="text-base">🇻🇳</span>
             <span>Tiếng Việt</span>
           </div>
-          <div className="at-column-body" ref={viScrollRef}>
+          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 min-h-0" ref={viScrollRef}>
             {entries.length === 0 ? (
-              <div className="at-empty-state">
+              <div className="flex flex-col items-center justify-center h-full text-[var(--color-mute)] text-[13px] gap-2 text-center py-10 px-5 select-none">
                 <span style={{ fontSize: 32, opacity: 0.2 }}>🇻🇳</span>
                 <span>Bản dịch sẽ hiện ở đây</span>
               </div>
             ) : (
               entries.map((entry) => (
-                <div
-                  key={entry.id}
-                  className={`at-entry at-entry-vi ${entry.status === 'processing' ? 'at-entry-loading' : ''} ${entry.status === 'error' ? 'at-entry-error' : ''}`}
-                >
-                  <div className="at-entry-time">{entry.timestamp}</div>
-                  <div className="at-entry-text">
-                    {entry.status === 'processing' && (
-                      <span className="at-live-indicator">
-                        <LoadingOutlined spin /> Đang dịch…
-                      </span>
-                    )}
-                    {entry.status === 'done' && (entry.vietnamese || '…')}
-                    {entry.status === 'error' && <span className="at-error-text">—</span>}
-                  </div>
-                </div>
+                <TranscriptEntryItem key={entry.id} entry={entry} variant="vi" />
               ))
             )}
           </div>

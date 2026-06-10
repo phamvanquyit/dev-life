@@ -1,10 +1,14 @@
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
-import { BrowserWindow, nativeImage, screen, Tray } from 'electron'
+import { BrowserWindow, ipcMain, nativeImage, screen, Tray } from 'electron'
 
 let tray: Tray | null = null
 let trayWindow: BrowserWindow | null = null
 let blurTimeout: NodeJS.Timeout | null = null
+
+ipcMain.handle('tray:is-visible', () => {
+  return trayWindow ? trayWindow.isVisible() : false
+})
 
 function createTrayWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -22,6 +26,7 @@ function createTrayWindow(): BrowserWindow {
     hasShadow: true,
     backgroundColor: '#1e1e2a',
     roundedCorners: true,
+    type: 'panel', // Add this for macOS tray apps
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -81,6 +86,14 @@ export function createTray(): void {
 
   // Create the panel window
   trayWindow = createTrayWindow()
+
+  trayWindow.on('show', () => {
+    trayWindow?.webContents.send('tray-visibility-change', true)
+  })
+
+  trayWindow.on('hide', () => {
+    trayWindow?.webContents.send('tray-visibility-change', false)
+  })
 
   // Hide panel when clicking outside, delayed to prevent click toggle race condition
   trayWindow.on('blur', () => {

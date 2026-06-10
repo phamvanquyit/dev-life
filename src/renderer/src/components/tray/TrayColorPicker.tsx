@@ -1,5 +1,5 @@
-import { CopyOutlined } from '@ant-design/icons'
 import { Input, message } from 'antd'
+import { Copy } from 'lucide-react'
 import { useCallback, useState } from 'react'
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -64,34 +64,20 @@ export default function TrayColorPicker() {
   const hslStr = hsl ? `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)` : ''
 
   return (
-    <div className="tray-tool">
+    <div className="flex flex-col">
       {/* Color preview */}
       <div
-        style={{
-          width: '100%',
-          height: 80,
-          borderRadius: 8,
-          background: color,
-          border: '1px solid rgba(255,255,255,0.1)',
-          marginBottom: 12,
-          transition: 'background 0.2s ease',
-        }}
+        className="w-full h-20 rounded-lg border border-[rgba(255,255,255,0.1)] mb-3 transition-[background] duration-200"
+        style={{ background: color }}
       />
 
       {/* Native color picker */}
-      <div className="tray-row" style={{ marginBottom: 8 }}>
+      <div className="flex items-center mb-2">
         <input
           type="color"
           value={color}
           onChange={(e) => setColor(e.target.value)}
-          style={{
-            width: 36,
-            height: 28,
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer',
-            background: 'transparent',
-          }}
+          className="w-9 h-7 border-none rounded cursor-pointer bg-transparent"
         />
         <Input
           value={color}
@@ -105,26 +91,34 @@ export default function TrayColorPicker() {
       </div>
 
       {/* Color values */}
-      <div className="tray-color-values">
+      <div className="flex flex-col gap-1 mb-3">
         {[
           { label: 'HEX', value: hexStr },
           { label: 'RGB', value: rgbStr },
           { label: 'HSL', value: hslStr },
         ].map(({ label, value }) => (
-          <div key={label} className="tray-color-value-row" onClick={() => copy(value)}>
-            <span className="tray-color-label">{label}</span>
-            <span className="tray-color-value">{value}</span>
-            <CopyOutlined style={{ fontSize: 10, color: '#606078' }} />
+          <div
+            key={label}
+            className="flex items-center gap-2 py-1.5 px-2 bg-[var(--color-canvas-soft)] rounded-[var(--radius-sm)] cursor-pointer transition-[background] duration-150 hover:bg-[#222]"
+            onClick={() => copy(value)}
+          >
+            <span className="text-[9px] font-semibold text-[var(--color-mute)] w-7 uppercase tracking-[0.5px]">
+              {label}
+            </span>
+            <span className="flex-1 text-[11px] font-[var(--font-mono)] text-[var(--color-ink)]">
+              {value}
+            </span>
+            <Copy size={10} style={{ color: '#606078' }} />
           </div>
         ))}
       </div>
 
       {/* Preset colors */}
-      <div className="tray-color-presets">
+      <div className="grid grid-cols-8 gap-1.5 mt-1">
         {presetColors.map((c) => (
           <div
             key={c}
-            className="tray-color-swatch"
+            className="w-full aspect-square rounded-[var(--radius-sm)] cursor-pointer transition-transform duration-150 border border-[rgba(255,255,255,0.06)] hover:scale-[1.15]"
             style={{
               background: c,
               outline: c === color ? '2px solid #6c5ce7' : 'none',

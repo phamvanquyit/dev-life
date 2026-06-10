@@ -1,4 +1,4 @@
-import { ReloadOutlined } from '@ant-design/icons'
+import { RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 declare global {
@@ -50,6 +50,7 @@ const isStandardModel = (modelId: string) => modelOrder.includes(modelId)
 export default function TrayQuota() {
   const [status, setStatus] = useState<any>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [isWindowVisible, setIsWindowVisible] = useState(false)
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -60,7 +61,26 @@ export default function TrayQuota() {
     }
   }, [])
 
+  // Listen for tray window visibility changes
   useEffect(() => {
+    window.api.isTrayVisible().then((visible: boolean) => {
+      setIsWindowVisible(visible)
+    })
+
+    const unsubscribe = window.api.onTrayVisibilityChange((visible: boolean) => {
+      setIsWindowVisible(visible)
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [])
+
+  // Manage data fetching interval based on window visibility
+  useEffect(() => {
+    if (!isWindowVisible) return
+
+    // Load once immediately when window becomes visible
     fetchStatus()
     window.api
       .refreshProxyQuota()
@@ -69,9 +89,10 @@ export default function TrayQuota() {
       })
       .catch(() => {})
 
-    const interval = setInterval(fetchStatus, 5000)
+    // Load every 10s while open
+    const interval = setInterval(fetchStatus, 10000)
     return () => clearInterval(interval)
-  }, [fetchStatus])
+  }, [isWindowVisible, fetchStatus])
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -125,7 +146,7 @@ export default function TrayQuota() {
     const isFull = segments === 5
 
     return (
-      <div className="tray-quota-bar">
+      <div className="flex items-center gap-1">
         {[0, 1, 2, 3, 4].map((i) => {
           const filled = i < segments
           let color = 'rgba(255,255,255,0.06)'
@@ -135,10 +156,16 @@ export default function TrayQuota() {
             else if (segments <= 2) color = '#faad14'
             else color = '#00d992'
           }
-          return <div key={i} className="tray-quota-segment" style={{ backgroundColor: color }} />
+          return (
+            <div
+              key={i}
+              className="flex-1 h-[3px] rounded-[1.5px] transition-colors duration-300"
+              style={{ backgroundColor: color }}
+            />
+          )
         })}
         <span
-          className="tray-quota-pct"
+          className="text-[9px] font-semibold min-w-[26px] text-right font-[var(--font-mono)]"
           style={{
             color: pct <= 20 ? '#ff4d4f' : pct <= 40 ? '#faad14' : 'rgba(255,255,255,0.35)',
           }}
@@ -151,10 +178,10 @@ export default function TrayQuota() {
 
   if (!status?.hasCredentials) {
     return (
-      <div className="tray-tool">
-        <div className="tray-quota-empty">
+      <div className="flex flex-col">
+        <div className="flex flex-col items-center justify-center py-[30px] px-3 gap-2">
           <span style={{ fontSize: 24, opacity: 0.5 }}>🔑</span>
-          <span style={{ fontSize: 11, color: 'var(--color-mute)', textAlign: 'center' }}>
+          <span className="text-[11px] text-[var(--color-mute)] text-center">
             No credentials configured
           </span>
         </div>
@@ -163,38 +190,47 @@ export default function TrayQuota() {
   }
 
   return (
-    <div className="tray-tool">
+    <div className="flex flex-col">
       {/* Refresh button */}
-      <div className="tray-quota-header">
-        <span className="tray-quota-title">Model Quota</span>
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="text-xs font-semibold text-[var(--color-primary)] tracking-[-0.2px]">
+          Model Quota
+        </span>
         <button
           type="button"
-          className="tray-quota-refresh"
+          className="w-6 h-6 rounded-md border border-[var(--color-hairline)] bg-transparent text-[var(--color-mute)] cursor-pointer flex items-center justify-center transition-all duration-150 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={handleRefresh}
           disabled={refreshing}
         >
-          <ReloadOutlined spin={refreshing} style={{ fontSize: 11 }} />
+          <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
         </button>
       </div>
 
       {/* Quota items */}
-      <div className="tray-quota-list">
+      <div className="flex flex-col gap-0 bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-[10px] overflow-hidden">
         {sortedItems.length > 0 ? (
           sortedItems.map((item: any) => {
             const timeText = getRemainingTimeText(item.resetTime)
             return (
-              <div key={item.modelId} className="tray-quota-item">
-                <div className="tray-quota-item-top">
-                  <span className="tray-quota-model">{item.displayName}</span>
-                  {timeText && <span className="tray-quota-timer">{timeText}</span>}
+              <div
+                key={item.modelId}
+                className="py-2.5 px-3 border-b border-[var(--color-hairline)] last:border-b-0 transition-[background] duration-150 hover:bg-[rgba(255,255,255,0.02)]"
+              >
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-xs font-medium text-[rgba(255,255,255,0.85)] tracking-[-0.1px]">
+                    {item.displayName}
+                  </span>
+                  {timeText && (
+                    <span className="text-[10px] text-[rgba(255,255,255,0.3)]">{timeText}</span>
+                  )}
                 </div>
                 {renderBar(item.remainingFraction)}
               </div>
             )
           })
         ) : (
-          <div className="tray-quota-empty">
-            <span style={{ fontSize: 11, color: 'var(--color-mute)' }}>No quota data</span>
+          <div className="flex flex-col items-center justify-center py-[30px] px-3 gap-2">
+            <span className="text-[11px] text-[var(--color-mute)]">No quota data</span>
           </div>
         )}
       </div>

@@ -1,11 +1,6 @@
 import { StyleProvider } from '@ant-design/cssinjs'
-import {
-  BgColorsOutlined,
-  DashboardOutlined,
-  LeftOutlined,
-  SafetyOutlined,
-} from '@ant-design/icons'
 import { ConfigProvider, theme } from 'antd'
+import { ChevronLeft, Gauge, Palette, Shield } from 'lucide-react'
 import { useState } from 'react'
 import TrayColorPicker from './TrayColorPicker'
 import TrayPasswordGenerator from './TrayPasswordGenerator'
@@ -23,15 +18,20 @@ const trayTools: TrayTool[] = [
     id: 'quota',
     label: 'Antigravity Quota',
     desc: 'Model usage & limits',
-    icon: <DashboardOutlined />,
+    icon: <Gauge size={18} />,
   },
   {
     id: 'password',
     label: 'Password Generator',
     desc: 'Generate secure passwords',
-    icon: <SafetyOutlined />,
+    icon: <Shield size={18} />,
   },
-  { id: 'color', label: 'Color Picker', desc: 'Pick & convert colors', icon: <BgColorsOutlined /> },
+  {
+    id: 'color',
+    label: 'Color Picker',
+    desc: 'Pick & convert colors',
+    icon: <Palette size={18} />,
+  },
 ]
 
 const toolComponents: Record<string, React.ReactNode> = {
@@ -66,41 +66,52 @@ export default function TrayPanel() {
           },
         }}
       >
-        <div className="tray-panel">
-          <div className="tray-panel-inner">
+        <div className="w-full h-full flex flex-col items-center p-0 font-[var(--font-sans)] bg-transparent">
+          <div className="flex-1 w-full bg-[var(--color-canvas)] rounded-xl border border-[var(--color-hairline)] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="tray-header">
+            <div className="py-2.5 px-3 border-b border-[var(--color-hairline)] flex items-center">
               {activeTool ? (
-                <div className="tray-header-back" onClick={() => setActiveTool(null)}>
-                  <LeftOutlined style={{ fontSize: 12 }} />
+                <div
+                  className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-primary-soft)] cursor-pointer transition-colors duration-150 select-none hover:text-[var(--color-primary)]"
+                  onClick={() => setActiveTool(null)}
+                >
+                  <ChevronLeft size={12} />
                   <span>{activeLabel}</span>
                 </div>
               ) : (
-                <div className="tray-header-title">
-                  <span className="tray-header-logo">Dev Life</span>
-                  <span className="tray-header-subtitle">Quick Tools</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-bold text-[var(--color-primary)]">
+                    Dev Life
+                  </span>
+                  <span className="text-[11px] text-[var(--color-mute)]">Quick Tools</span>
                 </div>
               )}
             </div>
 
             {/* Content */}
-            <div className="tray-content">
+            <div className="flex-1 overflow-y-auto p-3">
               {activeTool ? (
                 toolComponents[activeTool]
               ) : (
-                <div className="tray-tool-list">
+                <div className="flex flex-col gap-1.5">
                   {trayTools.map((tool) => (
                     <div
                       key={tool.id}
-                      className="tray-tool-item"
+                      className="flex items-center gap-3 p-3 bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-[var(--radius-md)] cursor-pointer transition-all duration-150 select-none hover:border-[var(--color-primary)]"
                       onClick={() => setActiveTool(tool.id)}
                     >
-                      <div className="tray-tool-item-icon">{tool.icon}</div>
-                      <div className="tray-tool-item-info">
-                        <div className="tray-tool-item-label">{tool.label}</div>
-                        <div className="tray-tool-item-desc">{tool.desc}</div>
+                      <div className="w-9 h-9 flex items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-primary-glow)] text-[var(--color-primary-soft)] text-base shrink-0">
+                        {tool.icon}
                       </div>
-                      <div className="tray-tool-item-arrow">›</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-medium text-[var(--color-ink)]">
+                          {tool.label}
+                        </div>
+                        <div className="text-[11px] text-[var(--color-mute)] mt-px">
+                          {tool.desc}
+                        </div>
+                      </div>
+                      <div className="text-lg text-[var(--color-mute)] shrink-0">›</div>
                     </div>
                   ))}
                 </div>

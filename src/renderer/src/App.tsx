@@ -82,31 +82,39 @@ export default function App() {
           },
         }}
       >
-        <div className="app-shell">
+        <div className="flex flex-col h-screen w-screen overflow-hidden">
           {/* Unified titlebar - full width */}
-          <div className="titlebar">
-            <span className="titlebar-app-name">Dev Life</span>
+          <div className="h-[var(--header-height)] flex items-center px-4 pl-[78px] bg-[var(--color-canvas)] border-b border-[var(--color-hairline)] [-webkit-app-region:drag] shrink-0 gap-3 z-20">
+            <span className="text-[13px] font-semibold text-[var(--color-body)] [-webkit-app-region:drag]">
+              Dev Life
+            </span>
             {meta && (
               <>
-                <span className="titlebar-separator" />
-                <span className="titlebar-tool-name">{meta.title}</span>
-                <span className="titlebar-tool-desc">{meta.desc}</span>
+                <span className="w-px h-3.5 bg-[var(--color-hairline)] shrink-0" />
+                <span className="text-xs font-medium text-[var(--color-ink)] [-webkit-app-region:no-drag]">
+                  {meta.title}
+                </span>
+                <span className="text-[11px] text-[var(--color-mute)] [-webkit-app-region:no-drag]">
+                  {meta.desc}
+                </span>
               </>
             )}
-            <span className="titlebar-spacer" />
-            <span className="titlebar-version">v1.0.0</span>
+            <span className="flex-1" />
+            <span className="text-[10px] text-[var(--color-mute)] font-[var(--font-mono)] [-webkit-app-region:no-drag]">
+              v1.0.0
+            </span>
           </div>
 
           {/* Main area: sidebar + content */}
-          <div className="main-area">
+          <div className="flex flex-1 overflow-hidden">
             <Sidebar
               activeTool={activeTool}
               onToolSelect={handleToolSelect}
               collapsed={sidebarCollapsed}
             />
 
-            <div className="content-area">
-              <div className="content-body">
+            <div className="flex-1 flex flex-col overflow-hidden bg-[var(--color-canvas)]">
+              <div className="flex-1 overflow-y-auto p-6">
                 <Routes>
                   <Route path="/" element={<Dashboard onToolSelect={handleToolSelect} />} />
                   <Route path="/antigravity-manager" element={<AntigravityManager />} />

@@ -92,8 +92,12 @@ function runAppleScript(script: string): Promise<string> {
 function extractDomain(url: string): string {
   try {
     const parsed = new URL(url)
-    // Remove 'www.' prefix for cleaner display
-    return parsed.hostname.replace(/^www\./, '')
+    const hostname = parsed.hostname.replace(/^www\./, '')
+    // Keep port for localhost so we can distinguish dev servers
+    if (hostname === 'localhost' && parsed.port) {
+      return `${hostname}:${parsed.port}`
+    }
+    return hostname
   } catch {
     return ''
   }

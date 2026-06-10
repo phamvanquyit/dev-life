@@ -12,13 +12,12 @@ interface HistoryEntry {
   domain: string
   url: string
   browser: string
-  created_at: string
+  createdAt: string
 }
 
 interface PasswordGeneratorState {
   // Generator settings
   length: number
-  count: number
   options: {
     uppercase: boolean
     lowercase: boolean
@@ -26,8 +25,8 @@ interface PasswordGeneratorState {
     symbols: boolean
   }
 
-  // Generated passwords
-  passwords: string[]
+  // Current generated password
+  currentPassword: string
 
   // Browser detection
   browserInfo: BrowserInfo | null
@@ -36,18 +35,18 @@ interface PasswordGeneratorState {
   // History
   history: HistoryEntry[]
   historyLoaded: boolean
+  showHistory: boolean
 
   // Actions - settings
   setLength: (length: number) => void
-  setCount: (count: number) => void
   toggleOption: (key: 'uppercase' | 'lowercase' | 'numbers' | 'symbols') => void
 
   // Actions - core
   generate: () => Promise<void>
-  copyPassword: (pw: string) => void
-  copyAll: () => void
+  copyPassword: (pw: string) => Promise<void>
 
   // Actions - history
+  toggleHistory: () => void
   loadHistory: () => Promise<void>
   deleteHistoryEntry: (id: number) => Promise<void>
   clearHistory: () => Promise<void>
@@ -76,22 +75,21 @@ function createPassword(length: number, options: Record<string, boolean>): strin
 export const usePasswordStore = create<PasswordGeneratorState>((set, get) => ({
   // Defaults
   length: 16,
-  count: 5,
   options: { uppercase: true, lowercase: true, numbers: true, symbols: true },
-  passwords: [],
+  currentPassword: '',
   browserInfo: null,
   detecting: false,
   history: [],
   historyLoaded: false,
+  showHistory: false,
 
   // Settings
   setLength: (length) => set({ length }),
-  setCount: (count) => set({ count }),
   toggleOption: (key) => set((s) => ({ options: { ...s.options, [key]: !s.options[key] } })),
 
-  // Generate + auto-detect + save to history
+  // Generate single password + auto-detect (no history save)
   generate: async () => {
-    const { length, count, options } = get()
+    const { length, options } = get()
 
     set({ detecting: true })
 
@@ -103,19 +101,26 @@ export const usePasswordStore = create<PasswordGeneratorState>((set, get) => ({
       // ignore
     }
 
-    // Generate passwords
-    const passwords = Array.from({ length: count }, () => createPassword(length, options))
+    // Generate single password
+    const password = createPassword(length, options)
 
-    set({ passwords, browserInfo: detected, detecting: false })
+    set({ currentPassword: password, browserInfo: detected, detecting: false })
+  },
 
-    // Save to history in background
+  copyPassword: async (pw) => {
+    navigator.clipboard.writeText(pw)
+
+    // Save to history only when user copies
+    const { browserInfo } = get()
     try {
-      const entries = passwords.map((pw) => ({
-        password: pw,
-        domain: detected?.domain ?? '',
-        url: detected?.url ?? '',
-        browser: detected?.browser ?? '',
-      }))
+      const entries = [
+        {
+          password: pw,
+          domain: browserInfo?.domain ?? '',
+          url: browserInfo?.url ?? '',
+          browser: browserInfo?.browser ?? '',
+        },
+      ]
       const updated = await window.api.savePasswordHistory(entries)
       set({ history: updated as HistoryEntry[] })
     } catch {
@@ -123,16 +128,15 @@ export const usePasswordStore = create<PasswordGeneratorState>((set, get) => ({
     }
   },
 
-  copyPassword: (pw) => {
-    navigator.clipboard.writeText(pw)
-  },
-
-  copyAll: () => {
-    const { passwords } = get()
-    navigator.clipboard.writeText(passwords.join('\n'))
-  },
-
   // History
+  toggleHistory: () => {
+    const { showHistory, historyLoaded } = get()
+    if (!showHistory && !historyLoaded) {
+      get().loadHistory()
+    }
+    set({ showHistory: !showHistory })
+  },
+
   loadHistory: async () => {
     try {
       const history = await window.api.getPasswordHistory()

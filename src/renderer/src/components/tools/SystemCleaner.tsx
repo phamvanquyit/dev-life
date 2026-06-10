@@ -1,14 +1,14 @@
-import {
-  CheckCircleOutlined,
-  ClearOutlined,
-  DeleteOutlined,
-  ExclamationCircleOutlined,
-  HddOutlined,
-  LoadingOutlined,
-  ReloadOutlined,
-  WarningOutlined,
-} from '@ant-design/icons'
 import { Button, Modal, message, Progress, Tag, Tooltip } from 'antd'
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  Eraser,
+  HardDrive,
+  Loader2,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 
 interface DiskUsageItem {
@@ -67,9 +67,9 @@ const cleanIdRisk: Record<string, 'safe' | 'caution' | 'warning'> = {
 }
 
 const riskConfig = {
-  safe: { color: '#52c41a', label: 'Safe', icon: <CheckCircleOutlined /> },
-  caution: { color: '#faad14', label: 'Caution', icon: <ExclamationCircleOutlined /> },
-  warning: { color: '#ff4d4f', label: 'Risky', icon: <WarningOutlined /> },
+  safe: { color: '#52c41a', label: 'Safe', icon: <CheckCircle size={14} /> },
+  caution: { color: '#faad14', label: 'Caution', icon: <AlertCircle size={14} /> },
+  warning: { color: '#ff4d4f', label: 'Risky', icon: <AlertTriangle size={14} /> },
 }
 
 const categoryIcons: Record<string, string> = {
@@ -144,7 +144,7 @@ export default function SystemCleaner() {
       if (risk !== 'safe') {
         Modal.confirm({
           title: `Clean ${item.label}?`,
-          icon: <ExclamationCircleOutlined style={{ color: riskConfig[risk].color }} />,
+          icon: <AlertCircle size={14} style={{ color: riskConfig[risk].color }} />,
           content: (
             <div>
               <p>
@@ -181,7 +181,7 @@ export default function SystemCleaner() {
 
     Modal.confirm({
       title: 'Clean all safe items?',
-      icon: <ClearOutlined style={{ color: '#52c41a' }} />,
+      icon: <Eraser size={14} style={{ color: '#52c41a' }} />,
       content: (
         <div>
           <p>
@@ -250,22 +250,30 @@ export default function SystemCleaner() {
   // Initial screen: only show Scan button
   if (!hasScanned && !scanning) {
     return (
-      <div className="system-cleaner">
-        <div className="sc-initial">
-          <div className="sc-initial-icon">
-            <HddOutlined />
+      <div className="flex flex-col gap-4 h-full">
+        <div className="flex flex-col items-center justify-center flex-1 min-h-[400px] gap-4 text-center py-10 px-5">
+          <div className="w-20 h-20 flex items-center justify-center rounded-[20px] bg-[var(--color-primary-glow)] text-[var(--color-primary-soft)] text-4xl mb-2">
+            <HardDrive size={16} />
           </div>
-          <div className="sc-initial-title">System Cleaner</div>
-          <div className="sc-initial-desc">
+          <div className="text-[22px] font-normal tracking-[-0.65px] text-[var(--color-ink)]">
+            System Cleaner
+          </div>
+          <div className="text-sm text-[var(--color-mute)] max-w-[400px] leading-[1.65] mb-2">
             Scan your system to find cache files, logs, and other cleanable items to free up disk
             space.
           </div>
           <Button
             type="primary"
             size="large"
-            icon={<ReloadOutlined />}
+            icon={<RefreshCw size={14} />}
             onClick={loadData}
-            className="sc-initial-btn"
+            style={{
+              height: 44,
+              padding: '0 32px',
+              fontSize: 16,
+              fontWeight: 600,
+              borderRadius: 'var(--radius-sm)',
+            }}
           >
             Scan Now
           </Button>
@@ -275,38 +283,48 @@ export default function SystemCleaner() {
   }
 
   return (
-    <div className="system-cleaner">
+    <div className="flex flex-col gap-4 h-full">
       {/* Disk Overview Card */}
-      <div className="sc-overview">
-        <div className="sc-overview-left">
-          <div className="sc-overview-icon">
-            <HddOutlined />
+      <div className="flex items-center justify-between py-5 px-6 bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-[var(--radius-md)] gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 flex items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-primary-glow)] text-[var(--color-primary-soft)] text-[22px] shrink-0">
+            <HardDrive size={16} />
           </div>
-          <div className="sc-overview-info">
-            <div className="sc-overview-title">Disk Storage</div>
+          <div>
+            <div className="text-base font-semibold text-[var(--color-ink)] mb-1.5">
+              Disk Storage
+            </div>
             {overview ? (
-              <div className="sc-overview-stats">
-                <span className="sc-stat">
-                  <span className="sc-stat-value">{overview.available}</span>
-                  <span className="sc-stat-label">available</span>
+              <div className="flex items-center gap-1.5 text-[13px] text-[var(--color-mute)]">
+                <span className="flex items-baseline gap-1">
+                  <span className="font-semibold text-[var(--color-ink)] font-[var(--font-mono)] text-sm">
+                    {overview.available}
+                  </span>
+                  <span className="text-[11px] text-[var(--color-mute)]">available</span>
                 </span>
-                <span className="sc-stat-sep">•</span>
-                <span className="sc-stat">
-                  <span className="sc-stat-value">{overview.used}</span>
-                  <span className="sc-stat-label">used</span>
+                <span className="text-[var(--color-hairline)] text-[10px]">•</span>
+                <span className="flex items-baseline gap-1">
+                  <span className="font-semibold text-[var(--color-ink)] font-[var(--font-mono)] text-sm">
+                    {overview.used}
+                  </span>
+                  <span className="text-[11px] text-[var(--color-mute)]">used</span>
                 </span>
-                <span className="sc-stat-sep">•</span>
-                <span className="sc-stat">
-                  <span className="sc-stat-value">{overview.total}</span>
-                  <span className="sc-stat-label">total</span>
+                <span className="text-[var(--color-hairline)] text-[10px]">•</span>
+                <span className="flex items-baseline gap-1">
+                  <span className="font-semibold text-[var(--color-ink)] font-[var(--font-mono)] text-sm">
+                    {overview.total}
+                  </span>
+                  <span className="text-[11px] text-[var(--color-mute)]">total</span>
                 </span>
               </div>
             ) : (
-              <div className="sc-overview-stats">Scanning...</div>
+              <div className="flex items-center gap-1.5 text-[13px] text-[var(--color-mute)]">
+                Scanning...
+              </div>
             )}
           </div>
         </div>
-        <div className="sc-overview-right">
+        <div className="shrink-0">
           {overview && (
             <Progress
               type="dashboard"
@@ -320,9 +338,9 @@ export default function SystemCleaner() {
       </div>
 
       {/* Actions Bar */}
-      <div className="sc-actions">
-        <div className="sc-actions-left">
-          <span className="sc-actions-title">
+      <div className="flex items-center justify-between py-2.5 px-4 bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-[var(--radius-md)]">
+        <div className="flex items-center">
+          <span className="text-[13px] font-medium text-[var(--color-body)]">
             {items.length > 0
               ? `${items.length} items • ${formatBytes(totalScanned)} scanned`
               : scanning
@@ -335,9 +353,9 @@ export default function SystemCleaner() {
             </Tag>
           )}
         </div>
-        <div className="sc-actions-right">
+        <div className="flex gap-2">
           <Button
-            icon={<ClearOutlined />}
+            icon={<Eraser size={14} />}
             onClick={handleCleanAll}
             disabled={scanning || totalCleanable === 0}
             type="primary"
@@ -346,7 +364,9 @@ export default function SystemCleaner() {
             Clean All Safe
           </Button>
           <Button
-            icon={scanning ? <LoadingOutlined /> : <ReloadOutlined />}
+            icon={
+              scanning ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />
+            }
             onClick={loadData}
             disabled={scanning}
           >
@@ -356,10 +376,10 @@ export default function SystemCleaner() {
       </div>
 
       {/* Grouped Items List */}
-      <div className="sc-list">
+      <div className="flex flex-col gap-1.5">
         {scanning && items.length === 0 ? (
-          <div className="sc-loading">
-            <LoadingOutlined style={{ fontSize: 24 }} />
+          <div className="flex flex-col items-center justify-center gap-3 py-[60px] px-5 text-[var(--color-mute)] text-sm">
+            <Loader2 size={24} className="animate-spin" />
             <span>Scanning disk usage...</span>
           </div>
         ) : (
@@ -368,17 +388,35 @@ export default function SystemCleaner() {
             const isCollapsed = collapsedCats[category]
 
             return (
-              <div key={category} className="sc-category">
-                <div className="sc-category-header" onClick={() => toggleCategory(category)}>
-                  <span className="sc-category-icon">{categoryIcons[category] || '📁'}</span>
-                  <span className="sc-category-name">{category}</span>
-                  <span className="sc-category-count">{categoryItems.length} items</span>
-                  <span className="sc-category-size">{formatBytes(catSize)}</span>
-                  <span className={`sc-category-chevron ${isCollapsed ? 'collapsed' : ''}`}>▾</span>
+              <div
+                key={category}
+                className="border border-[var(--color-hairline)] rounded-[var(--radius-md)] overflow-hidden bg-[var(--color-canvas)]"
+              >
+                <div
+                  className="flex items-center gap-2 py-2.5 px-4 cursor-pointer transition-[background] duration-150 select-none border-b border-transparent hover:bg-[rgba(255,255,255,0.03)]"
+                  onClick={() => toggleCategory(category)}
+                >
+                  <span className="text-[15px] w-[22px] text-center shrink-0">
+                    {categoryIcons[category] || '📁'}
+                  </span>
+                  <span className="text-[13px] font-semibold text-[var(--color-ink)] flex-1">
+                    {category}
+                  </span>
+                  <span className="text-[11px] text-[var(--color-mute)] bg-[var(--color-canvas-soft)] px-2 py-px rounded-[var(--radius-pill)]">
+                    {categoryItems.length} items
+                  </span>
+                  <span className="text-[13px] font-semibold font-[var(--font-mono)] text-[var(--color-primary)] min-w-[60px] text-right">
+                    {formatBytes(catSize)}
+                  </span>
+                  <span
+                    className={`text-xs text-[var(--color-mute)] transition-transform duration-200 w-4 text-center ${isCollapsed ? '-rotate-90' : ''}`}
+                  >
+                    ▾
+                  </span>
                 </div>
 
                 {!isCollapsed && (
-                  <div className="sc-category-items">
+                  <div className="border-t border-[var(--color-hairline)]">
                     {categoryItems.map((item) => {
                       const risk = cleanIdRisk[item.cleanId] || 'warning'
                       const rc = riskConfig[risk]
@@ -387,10 +425,15 @@ export default function SystemCleaner() {
                       const wasCleaned = cleaned[item.cleanId]
 
                       return (
-                        <div key={item.cleanId} className="sc-item">
-                          <div className="sc-item-left">
-                            <div className="sc-item-header">
-                              <span className="sc-item-label">{item.label}</span>
+                        <div
+                          key={item.cleanId}
+                          className="flex items-start justify-between py-3.5 px-[18px] bg-[var(--color-canvas)] border-b border-[var(--color-hairline)] last:border-b-0 transition-all duration-200 gap-5 hover:border-[rgba(0,217,146,0.3)]"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="text-sm font-semibold text-[var(--color-ink)]">
+                                {item.label}
+                              </span>
                               <Tooltip
                                 title={
                                   risk === 'safe'
@@ -413,15 +456,21 @@ export default function SystemCleaner() {
                                 </Tag>
                               )}
                             </div>
-                            <div className="sc-item-desc">{item.description}</div>
-                            <div className="sc-item-path">{item.path}</div>
+                            <div className="text-xs text-[var(--color-mute)] mb-0.5">
+                              {item.description}
+                            </div>
+                            <div className="text-[11px] font-[var(--font-mono)] text-[var(--color-mute)] opacity-60 whitespace-nowrap overflow-hidden text-ellipsis">
+                              {item.path}
+                            </div>
                           </div>
 
-                          <div className="sc-item-right">
-                            <div className="sc-item-size">{item.size}</div>
-                            <div className="sc-item-bar-wrap">
+                          <div className="flex flex-col items-end min-w-[100px] shrink-0">
+                            <div className="text-base font-bold font-[var(--font-mono)] text-[var(--color-ink)] mb-1.5">
+                              {item.size}
+                            </div>
+                            <div className="w-full h-1 bg-[var(--color-canvas-soft)] rounded-sm overflow-hidden">
                               <div
-                                className="sc-item-bar"
+                                className="h-full rounded-sm transition-[width] duration-[600ms] min-w-1"
                                 style={{
                                   width: `${Math.min(100, (item.sizeBytes / maxSizeBytes) * 100)}%`,
                                   background: rc.color,
@@ -433,7 +482,13 @@ export default function SystemCleaner() {
                                 size="small"
                                 danger={risk === 'warning'}
                                 type={risk === 'safe' ? 'primary' : 'default'}
-                                icon={isCleaning ? <LoadingOutlined /> : <DeleteOutlined />}
+                                icon={
+                                  isCleaning ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                  ) : (
+                                    <Trash2 size={14} />
+                                  )
+                                }
                                 disabled={isCleaning}
                                 onClick={() => handleClean(item)}
                                 style={{ marginTop: 6 }}

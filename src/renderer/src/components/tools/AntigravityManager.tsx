@@ -1,14 +1,5 @@
-import {
-  ApiOutlined,
-  CaretRightOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  CopyOutlined,
-  LoadingOutlined,
-  RocketOutlined,
-  SendOutlined,
-} from '@ant-design/icons'
 import { Button, message, Tooltip } from 'antd'
+import { CheckCircle, Copy, Loader2, Play, Plug, Rocket, Send, XCircle } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 
 const BASE_URL = 'http://127.0.0.1:18981'
@@ -194,7 +185,7 @@ export default function AntigravityManager() {
       {/* Sidebar */}
       <div className="w-[280px] min-w-[280px] flex flex-col border-r border-[var(--color-hairline)] bg-[var(--color-canvas)]">
         <div className="flex items-center gap-2 px-4 py-3.5 text-sm font-semibold text-[var(--color-ink)] border-b border-[var(--color-hairline)]">
-          <RocketOutlined className="text-[var(--color-primary)]" />
+          <Rocket size={14} className="text-[var(--color-primary)]" />
           <span>Antigravity API</span>
         </div>
 
@@ -253,7 +244,7 @@ export default function AntigravityManager() {
           <Tooltip title="Copy cURL">
             <Button
               type="text"
-              icon={<CopyOutlined />}
+              icon={<Copy size={14} />}
               onClick={handleCopyCurl}
               size="small"
               className="!text-[var(--color-mute)]"
@@ -261,7 +252,7 @@ export default function AntigravityManager() {
           </Tooltip>
           <Button
             type="primary"
-            icon={loading ? <LoadingOutlined /> : <SendOutlined />}
+            icon={loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             onClick={handleSend}
             disabled={loading}
             className="h-9 min-w-[90px] font-semibold"
@@ -273,7 +264,7 @@ export default function AntigravityManager() {
 
         {/* Description */}
         <div className="flex items-center gap-2 px-4 py-2 text-xs text-[var(--color-body)] border-b border-[var(--color-hairline)]">
-          <ApiOutlined className="text-[var(--color-primary)]" />
+          <Plug size={14} className="text-[var(--color-primary)]" />
           <span>{selected.description}</span>
         </div>
 
@@ -366,7 +357,7 @@ export default function AntigravityManager() {
                       : 'bg-[rgba(255,107,107,0.12)] text-[var(--color-error)]'
                   }`}
                 >
-                  {isSuccess ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                  {isSuccess ? <CheckCircle size={12} /> : <XCircle size={12} />}
                   {response.status > 0
                     ? `${response.status} ${response.statusText}`
                     : response.statusText}
@@ -382,7 +373,7 @@ export default function AntigravityManager() {
                 <Tooltip title="Copy response">
                   <Button
                     type="text"
-                    icon={<CopyOutlined />}
+                    icon={<Copy size={14} />}
                     onClick={handleCopyResponse}
                     size="small"
                     className="!text-[var(--color-mute)]"
@@ -396,7 +387,7 @@ export default function AntigravityManager() {
           <div className="flex-1 overflow-y-auto bg-[var(--color-canvas)]">
             {loading ? (
               <div className="flex flex-col items-center justify-center h-full min-h-[200px] gap-3 text-sm text-[var(--color-primary)]">
-                <LoadingOutlined className="text-2xl" />
+                <Loader2 size={24} className="animate-spin" />
                 <span>Sending request...</span>
               </div>
             ) : response ? (
@@ -408,7 +399,7 @@ export default function AntigravityManager() {
               </pre>
             ) : (
               <div className="flex flex-col items-center justify-center h-full min-h-[200px] gap-3 text-sm text-[var(--color-mute)]">
-                <CaretRightOutlined className="text-3xl text-[var(--color-primary)] opacity-40" />
+                <Play size={30} className="text-[var(--color-primary)] opacity-40" />
                 <span>
                   Click <strong>Send</strong> to make a request
                 </span>

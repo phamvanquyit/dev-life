@@ -1,5 +1,5 @@
-import { ApiOutlined, CopyOutlined, ReloadOutlined } from '@ant-design/icons'
 import { Button, message, Tag, Tooltip } from 'antd'
+import { Copy, Plug, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 declare global {
@@ -129,19 +129,14 @@ export default function AIProxy() {
     const inactiveColor = 'rgba(255, 255, 255, 0.06)'
 
     return (
-      <div style={{ display: 'flex', gap: 4, width: '100%', marginTop: 8 }}>
+      <div className="flex gap-1 w-full mt-2">
         {[0, 1, 2, 3, 4].map((index) => {
           const isFilled = index < filledSegments
           return (
             <div
               key={index}
-              style={{
-                flex: 1,
-                height: 4,
-                backgroundColor: isFilled ? activeColor : inactiveColor,
-                borderRadius: 2,
-                transition: 'background-color 0.3s ease',
-              }}
+              className="flex-1 h-1 rounded-sm transition-colors duration-300"
+              style={{ backgroundColor: isFilled ? activeColor : inactiveColor }}
             />
           )
         })}
@@ -150,56 +145,28 @@ export default function AIProxy() {
   }
 
   return (
-    <div className="ai-proxy-page">
-      <div className="proxy-content">
+    <div className="flex flex-col h-full gap-4 overflow-y-auto -m-6 p-5">
+      <div className="flex flex-col gap-4">
         {/* Account Profile */}
         {status?.profile && (
-          <div
-            className="proxy-card"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 16,
-              padding: '16px 20px',
-              background: 'var(--color-canvas)',
-            }}
-          >
+          <div className="flex items-center gap-4 py-4 px-5 bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-[var(--radius-md)]">
             {status.profile.picture ? (
               <img
                 src={status.profile.picture}
                 alt="Profile"
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: '50%',
-                  border: '2px solid var(--color-border)',
-                }}
+                className="w-11 h-11 rounded-full border-2 border-[var(--color-hairline)]"
               />
             ) : (
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: '50%',
-                  background: 'var(--color-bg-tertiary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  border: '2px solid var(--color-border)',
-                }}
-              >
-                <span style={{ margin: 'auto', fontSize: 18, color: 'var(--color-text-muted)' }}>
-                  👤
-                </span>
+              <div className="w-11 h-11 rounded-full bg-[var(--color-canvas-soft)] flex items-center border-2 border-[var(--color-hairline)]">
+                <span className="m-auto text-lg text-[var(--color-mute)]">👤</span>
               </div>
             )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+            <div className="flex flex-col gap-1">
+              <span className="text-[15px] font-semibold text-[var(--color-ink)]">
                 {status.profile.name}
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                  {status.profile.email}
-                </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--color-mute)]">{status.profile.email}</span>
                 <Tag
                   color={status.profile.account_type === 'Personal' ? 'cyan' : 'gold'}
                   style={{ margin: 0, fontSize: 10, lineHeight: '16px', height: 18 }}
@@ -212,21 +179,24 @@ export default function AIProxy() {
         )}
 
         {/* Endpoint Info */}
-        <div className="proxy-card">
-          <div className="proxy-card-header">
-            <ApiOutlined /> Endpoint Configuration
+        <div className="bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-[var(--radius-md)] overflow-hidden">
+          <div className="flex items-center gap-2 py-3 px-4 text-[13px] font-semibold text-[var(--color-ink)] border-b border-[var(--color-hairline)]">
+            <Plug size={13} /> Endpoint Configuration
           </div>
-          <div className="proxy-card-body">
-            <div className="endpoint-grid">
-              <div className="endpoint-item">
-                <span className="endpoint-label">Base URL</span>
-                <div className="endpoint-value-row">
-                  <code className="endpoint-code">
+          <div className="p-4">
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-semibold text-[var(--color-mute)] uppercase tracking-[0.5px]">
+                  Base URL
+                </span>
+                <div className="flex items-center gap-2">
+                  <code className="py-1.5 px-2.5 bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-[var(--radius-sm)] text-[13px] font-[var(--font-mono)] text-[var(--color-primary-soft)] flex-1">
                     {status?.baseUrl || `http://127.0.0.1:${PROXY_PORT}/v1`}
                   </code>
                   <Tooltip title="Copy">
-                    <CopyOutlined
-                      className="endpoint-copy"
+                    <Copy
+                      size={14}
+                      className="cursor-pointer text-[var(--color-mute)] transition-colors duration-150 text-sm hover:text-[var(--color-primary)]"
                       onClick={() => {
                         navigator.clipboard.writeText(
                           status?.baseUrl || `http://127.0.0.1:${PROXY_PORT}/v1`,
@@ -237,13 +207,18 @@ export default function AIProxy() {
                   </Tooltip>
                 </div>
               </div>
-              <div className="endpoint-item">
-                <span className="endpoint-label">API Key</span>
-                <div className="endpoint-value-row">
-                  <code className="endpoint-code">not-needed</code>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-semibold text-[var(--color-mute)] uppercase tracking-[0.5px]">
+                  API Key
+                </span>
+                <div className="flex items-center gap-2">
+                  <code className="py-1.5 px-2.5 bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-[var(--radius-sm)] text-[13px] font-[var(--font-mono)] text-[var(--color-primary-soft)] flex-1">
+                    not-needed
+                  </code>
                   <Tooltip title="Copy">
-                    <CopyOutlined
-                      className="endpoint-copy"
+                    <Copy
+                      size={14}
+                      className="cursor-pointer text-[var(--color-mute)] transition-colors duration-150 text-sm hover:text-[var(--color-primary)]"
                       onClick={() => {
                         navigator.clipboard.writeText('not-needed')
                         message.success('API Key copied!')
@@ -253,7 +228,7 @@ export default function AIProxy() {
                 </div>
               </div>
             </div>
-            <div className="endpoint-routes">
+            <div className="flex flex-wrap gap-1.5">
               <Tag color="green">GET /v1/models</Tag>
               <Tag color="blue">POST /v1/chat/completions</Tag>
               <Tag color="purple">POST /v1/completions</Tag>
@@ -299,45 +274,28 @@ export default function AIProxy() {
             })
 
             return (
-              <div style={{ marginTop: 8 }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 12,
-                  }}
-                >
-                  <h3
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: 'var(--color-text-primary)',
-                      margin: 0,
-                    }}
-                  >
+              <div className="mt-2">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-[15px] font-semibold text-[var(--color-ink)] m-0">
                     Model Quota
                   </h3>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<ReloadOutlined />}
-                    loading={refreshingModels}
-                    onClick={handleRefreshModels}
-                    style={{ color: 'var(--color-text-muted)' }}
-                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={
+                        <RefreshCw size={14} className={refreshingModels ? 'animate-spin' : ''} />
+                      }
+                      loading={refreshingModels}
+                      onClick={handleRefreshModels}
+                      style={{ color: 'var(--color-mute)' }}
+                    />
+                  </div>
                 </div>
 
-                <div
-                  style={{
-                    background: 'var(--color-canvas)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 10,
-                    overflow: 'hidden',
-                  }}
-                >
+                <div className="bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-[10px] overflow-hidden">
                   {sortedDisplayItems.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div className="flex flex-col">
                       {sortedDisplayItems.map((item, index) => {
                         const isLast = index === sortedDisplayItems.length - 1
                         const remainingTimeText = getRemainingTimeText(item.resetTime)
@@ -345,36 +303,14 @@ export default function AIProxy() {
                         return (
                           <div
                             key={item.modelId}
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              padding: '16px 20px',
-                              borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
-                            }}
+                            className={`flex flex-col py-4 px-5 ${isLast ? '' : 'border-b border-[var(--color-hairline)]'}`}
                           >
-                            <div
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: 14,
-                                  fontWeight: 500,
-                                  color: 'rgba(255, 255, 255, 0.9)',
-                                }}
-                              >
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium text-[rgba(255,255,255,0.9)]">
                                 {item.displayName}
                               </span>
                               {remainingTimeText && (
-                                <span
-                                  style={{
-                                    fontSize: 12,
-                                    color: 'rgba(255, 255, 255, 0.35)',
-                                  }}
-                                >
+                                <span className="text-xs text-[rgba(255,255,255,0.35)]">
                                   {remainingTimeText}
                                 </span>
                               )}
@@ -385,14 +321,7 @@ export default function AIProxy() {
                       })}
                     </div>
                   ) : (
-                    <div
-                      style={{
-                        textAlign: 'center',
-                        padding: '32px 0',
-                        color: 'var(--color-text-muted)',
-                        fontSize: 13,
-                      }}
-                    >
+                    <div className="text-center py-8 text-[var(--color-mute)] text-[13px]">
                       No models loaded. Click reload to fetch models.
                     </div>
                   )}
@@ -400,38 +329,20 @@ export default function AIProxy() {
 
                 {/* Model IDs List */}
                 {models.length > 0 && (
-                  <div style={{ marginTop: 20 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                      <span
-                        style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)' }}
-                      >
+                  <div className="mt-5">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="text-[13px] font-semibold text-[var(--color-mute)]">
                         Available Models
                       </span>
-                      <span
-                        style={{ fontSize: 11, color: 'var(--color-text-muted)', opacity: 0.6 }}
-                      >
+                      <span className="text-[11px] text-[var(--color-mute)] opacity-60">
                         ({models.length})
                       </span>
                     </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: 6,
-                      }}
-                    >
+                    <div className="flex flex-wrap gap-1.5">
                       {models.map((model) => (
                         <div
                           key={model.id}
-                          style={{
-                            padding: '4px 8px',
-                            background: 'rgba(255, 255, 255, 0.02)',
-                            border: '1px solid var(--color-border)',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            fontFamily: 'var(--font-mono)',
-                            color: 'var(--color-text-muted)',
-                          }}
+                          className="py-1 px-2 bg-[rgba(255,255,255,0.02)] border border-[var(--color-hairline)] rounded text-[11px] font-[var(--font-mono)] text-[var(--color-mute)]"
                         >
                           {model.id}
                         </div>
