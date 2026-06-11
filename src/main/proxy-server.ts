@@ -29,6 +29,16 @@ let lastRequestAt: string | null = null
 
 // Cache: tool_call_id → original Gemini functionCall part (preserves thought_signature)
 const functionCallPartsCache = new Map<string, any>()
+const MAX_FUNCTION_CALL_CACHE_SIZE = 500
+
+/** Evict oldest entries when cache grows too large (FIFO) */
+function evictFunctionCallCache(): void {
+  while (functionCallPartsCache.size > MAX_FUNCTION_CALL_CACHE_SIZE) {
+    const firstKey = functionCallPartsCache.keys().next().value
+    if (firstKey) functionCallPartsCache.delete(firstKey)
+    else break
+  }
+}
 
 // ─── Credentials from DB ─────────────────────────────────────────────────────
 
@@ -558,6 +568,7 @@ function createOpenAIResponse(text: string, model: string, promptLen: number, al
       const callId = `call_${crypto.randomBytes(12).toString('hex')}`
       // Cache the original Gemini part (preserves thought_signature for multi-turn)
       functionCallPartsCache.set(callId, p)
+      evictFunctionCallCache()
       return {
         id: callId,
         type: 'function' as const,
@@ -880,6 +891,7 @@ async function startProxyServer(): Promise<{ success: boolean; port?: number; er
                   const callId = `call_${crypto.randomBytes(12).toString('hex')}`
                   // Cache original part (preserves thought_signature for multi-turn)
                   functionCallPartsCache.set(callId, p)
+                  evictFunctionCallCache()
                   return {
                     id: callId,
                     name: p.functionCall.name,

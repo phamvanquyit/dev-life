@@ -24,6 +24,7 @@ const SILENCE_THRESHOLD = 12 // 0-255 average frequency; below = silence
 const SILENCE_CUTOFF_MS = 1500 // 1.5s silence → end chunk
 const MAX_CHUNK_MS = 15000 // force-split at 15s
 const MIN_CHUNK_MS = 600 // ignore chunks shorter than 600ms
+const MAX_TRANSCRIPT_ENTRIES = 300 // auto-trim entries to prevent memory growth
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -254,7 +255,7 @@ export default function AudioTranslator() {
                     : e,
                 )
               }
-              return [
+              const next = [
                 ...prev,
                 {
                   id: entryId,
@@ -264,6 +265,10 @@ export default function AudioTranslator() {
                   status: data.is_final ? ('done' as const) : ('processing' as const),
                 },
               ]
+              // Auto-trim oldest entries to prevent memory growth
+              return next.length > MAX_TRANSCRIPT_ENTRIES
+                ? next.slice(-MAX_TRANSCRIPT_ENTRIES)
+                : next
             })
             scrollToBottom()
           } else if (data.type === 'translation') {
