@@ -65,7 +65,7 @@ echo -e "${GREEN}Download complete.${NC}"
 echo -e "${BOLD}Installing ${APP_NAME}...${NC}"
 
 # Mount the DMG
-MOUNT_POINT=$(hdiutil attach "$DMG_PATH" -nobrowse -quiet | tail -1 | awk -F'\t' '{print $NF}')
+MOUNT_POINT=$(hdiutil attach "$DMG_PATH" -nobrowse 2>/dev/null | tail -1 | awk -F'\t' '{print $NF}')
 
 if [ -z "$MOUNT_POINT" ]; then
   echo -e "${RED}Error: Failed to mount DMG.${NC}"
