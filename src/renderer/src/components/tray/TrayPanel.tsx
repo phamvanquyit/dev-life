@@ -62,35 +62,47 @@ export default function TrayPanel() {
   const [miniAppPanels, setMiniAppPanels] = useState<MiniAppPanelInfo[]>([])
 
   // Load mini apps with panel code
-  useEffect(() => {
-    async function load() {
-      try {
-        const list = await window.api?.listMiniApps()
-        if (!list) return
-        const withPanels = list.filter((a: any) => a.enabled && a.hasPanel)
-        if (withPanels.length === 0) {
-          setMiniAppPanels([])
-          return
-        }
-        // Fetch full data for each to get panelCode
-        const details = await Promise.all(withPanels.map((a: any) => window.api?.getMiniApp(a.id)))
-        setMiniAppPanels(
-          details
-            .filter((d: any) => d?.panelCode)
-            .map((d: any) => ({
-              id: d.id,
-              name: d.name,
-              icon: d.icon,
-              description: d.description,
-              panelCode: d.panelCode,
-            })),
-        )
-      } catch {
-        // silently fail
+  const loadPanels = useCallback(async () => {
+    try {
+      const list = await window.api?.listMiniApps()
+      if (!list) return
+      const withPanels = list.filter((a: any) => a.enabled && a.hasPanel)
+      if (withPanels.length === 0) {
+        setMiniAppPanels([])
+        return
       }
+      // Fetch full data for each to get panelCode
+      const details = await Promise.all(withPanels.map((a: any) => window.api?.getMiniApp(a.id)))
+      setMiniAppPanels(
+        details
+          .filter((d: any) => d?.panelCode)
+          .map((d: any) => ({
+            id: d.id,
+            name: d.name,
+            icon: d.icon,
+            description: d.description,
+            panelCode: d.panelCode,
+          })),
+      )
+    } catch {
+      // silently fail
     }
-    load()
   }, [])
+
+  // Load on mount
+  useEffect(() => {
+    loadPanels()
+  }, [loadPanels])
+
+  // Reload when tray becomes visible (so toggle changes in main window are reflected instantly)
+  useEffect(() => {
+    const cleanup = window.api?.onTrayVisibilityChange((visible: boolean) => {
+      if (visible) {
+        loadPanels()
+      }
+    })
+    return () => cleanup?.()
+  }, [loadPanels])
 
   // Build tool list from mini apps with panels
   const allTools: TrayTool[] = useMemo(() => {
@@ -139,17 +151,29 @@ export default function TrayPanel() {
           )}
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-3">
           {activeTool ? (
             renderContent()
           ) : allTools.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <span className="text-2xl mb-2">👋</span>
-              <span className="text-sm font-medium text-[var(--color-ink)]">Welcome!</span>
-              <span className="text-[11px] text-[var(--color-mute)] mt-1">
-                No tools available yet
+            <div className="flex flex-col items-center justify-center h-full py-12 px-4 text-center">
+              <div className="w-12 h-12 rounded-[var(--radius-md)] bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] flex items-center justify-center mb-4">
+                <LucideIcons.LayoutGrid size={22} className="text-[var(--color-mute)]" />
+              </div>
+              <span className="text-sm font-medium text-[var(--color-ink)] mb-1">
+                No active panels
               </span>
+              <span className="text-[11px] text-[var(--color-mute)] leading-relaxed max-w-[240px]">
+                Enable a mini app with a panel component to see its quick tools here.
+              </span>
+              <div className="mt-4 px-3 py-2 rounded-[var(--radius-sm)] border border-dashed border-[var(--color-hairline)] bg-[var(--color-canvas-soft)]">
+                <span className="text-[10px] text-[var(--color-mute)] leading-relaxed">
+                  Go to{' '}
+                  <span className="text-[var(--color-primary)] font-medium">
+                    Mini Apps → Manage
+                  </span>{' '}
+                  to enable apps
+                </span>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">

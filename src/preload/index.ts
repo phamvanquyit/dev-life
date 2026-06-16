@@ -167,6 +167,13 @@ const api = {
     ipcRenderer.on('update:available', handler)
     return () => ipcRenderer.removeListener('update:available', handler)
   },
+
+  // Tray visibility
+  onTrayVisibilityChange: (callback: (visible: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, visible: boolean) => callback(visible)
+    ipcRenderer.on('tray-visibility-change', handler)
+    return () => ipcRenderer.removeListener('tray-visibility-change', handler)
+  },
 }
 
 contextBridge.exposeInMainWorld('api', api)

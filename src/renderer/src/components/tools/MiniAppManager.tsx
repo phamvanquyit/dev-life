@@ -241,8 +241,10 @@ export default function MiniAppManager() {
                 <Switch
                   size="small"
                   checked={app.enabled}
-                  onChange={() => handleToggle(app.id)}
-                  onClick={(_checked, e) => e.stopPropagation()}
+                  onClick={(_checked, e) => {
+                    e.stopPropagation()
+                    handleToggle(app.id)
+                  }}
                   className="shrink-0"
                 />
               </div>

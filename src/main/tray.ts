@@ -68,12 +68,7 @@ function positionWindowBelowTray(win: BrowserWindow, trayBounds: Electron.Rectan
 
 export function createTray(mainWindow?: BrowserWindow): void {
   // Determine icon filename based on environment
-  let iconName = 'trayIconTemplate.png'
-  if (process.env.DEV_LIFE_PREVIEW === 'true') {
-    iconName = 'trayIconPreviewTemplate.png'
-  } else if (is.dev) {
-    iconName = 'trayIconDevTemplate.png'
-  }
+  const iconName = 'trayIconTemplate.png'
 
   // Load template icon
   let iconPath = join(__dirname, `../../resources/${iconName}`)
@@ -104,7 +99,7 @@ export function createTray(mainWindow?: BrowserWindow): void {
   icon.setTemplateImage(true)
 
   tray = new Tray(icon)
-  tray.setToolTip(process.env.DEV_LIFE_PREVIEW === 'true' ? 'Dev Life Preview' : 'Dev Life')
+  tray.setToolTip('Dev Life')
   tray.setIgnoreDoubleClickEvents(true)
 
   // Create the panel window

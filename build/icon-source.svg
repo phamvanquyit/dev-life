@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f1117"/>
+      <stop offset="100%" stop-color="#0a0a0f"/>
+    </linearGradient>
+    <linearGradient id="grad" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#00d992"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <clipPath id="roundedClip">
+      <rect width="1024" height="1024" rx="228" ry="228"/>
+    </clipPath>
+  </defs>
+
+  <!-- Rounded background -->
+  <rect width="1024" height="1024" rx="228" ry="228" fill="url(#bg)"/>
+
+  <!-- Logo centered and scaled (original 512 viewBox → scale 2x, offset to center) -->
+  <g transform="translate(102, 102) scale(1.6)" clip-path="url(#roundedClip)">
+    <!-- { -->
+    <path
+      d="M 160 96 Q 110 96, 110 146 L 110 216 Q 110 256, 65 256 Q 110 256, 110 296 L 110 366 Q 110 416, 160 416"
+      fill="none" stroke="url(#grad)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"
+    />
+
+    <!-- Single heartbeat pulse -->
+    <polyline
+      points="175,256 220,256 248,170 268,342 296,256 337,256"
+      fill="none" stroke="url(#grad)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"
+    />
+
+    <!-- } -->
+    <path
+      d="M 352 96 Q 402 96, 402 146 L 402 216 Q 402 256, 447 256 Q 402 256, 402 296 L 402 366 Q 402 416, 352 416"
+      fill="none" stroke="url(#grad)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"
+    />
+  </g>
+</svg>

@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage, shell } from 'electron'
 import { setupAiAgentIPC } from './ai-agent'
 import { setupLlmProvidersIPC } from './llm-providers'
 import { startMcpServer, stopMcpServer } from './mcp-server'
@@ -46,19 +46,7 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
-try {
-  if (app.getPath('exe').includes('Dev Life Preview.app')) {
-    process.env.DEV_LIFE_PREVIEW = 'true'
-  }
-} catch (e) {
-  console.error('Failed to detect app path:', e)
-}
-
-if (process.env.DEV_LIFE_PREVIEW === 'true') {
-  app.setName('Dev Life Preview')
-} else {
-  app.setName('Dev Life')
-}
+app.setName('Dev Life')
 
 let forceQuit = false
 
@@ -73,6 +61,20 @@ app.whenReady().then(() => {
 
   // Ensure dock icon is visible on macOS
   app.dock?.show()
+
+  // Set dock icon to our custom icon (PNG works more reliably than icns with nativeImage)
+  const iconPaths = [
+    join(__dirname, '../../build/icon.png'),
+    join(__dirname, '../../build/icon.icns'),
+    join(process.resourcesPath, 'icon.png'),
+  ]
+  for (const p of iconPaths) {
+    const icon = nativeImage.createFromPath(p)
+    if (!icon.isEmpty()) {
+      app.dock?.setIcon(icon)
+      break
+    }
+  }
 
   // Hide window instead of quitting when clicking the X button
   mainWindow.on('close', (e) => {
