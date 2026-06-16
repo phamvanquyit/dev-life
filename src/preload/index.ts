@@ -162,10 +162,24 @@ const api = {
     ipcRenderer.invoke('update:dismiss', version),
   openRelease: (url: string): Promise<{ success: boolean }> =>
     ipcRenderer.invoke('update:open-release', url),
+  installUpdate: (): Promise<{ success: boolean }> => ipcRenderer.invoke('update:install'),
+  restartApp: (): Promise<void> => ipcRenderer.invoke('update:restart'),
   onUpdateAvailable: (callback: (info: any) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, info: any) => callback(info)
     ipcRenderer.on('update:available', handler)
     return () => ipcRenderer.removeListener('update:available', handler)
+  },
+  onUpdateProgress: (
+    callback: (progress: {
+      stage: string
+      percent?: number
+      message?: string
+      error?: string
+    }) => void,
+  ) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: any) => callback(progress)
+    ipcRenderer.on('update:progress', handler)
+    return () => ipcRenderer.removeListener('update:progress', handler)
   },
 
   // Tray visibility

@@ -4,7 +4,6 @@ import {
   CheckCircle,
   Copy,
   Download,
-  ExternalLink,
   Loader2,
   Server,
   Settings as SettingsIcon,
@@ -107,14 +106,28 @@ function McpSection() {
 
 // ─── About & Updates Section ─────────────────────────────────────────────────
 
+type InstallStage = 'idle' | 'downloading' | 'extracting' | 'installing' | 'done' | 'error'
+
 function UpdateSection() {
   const [appVersion, setAppVersion] = useState('...')
   const [checking, setChecking] = useState(false)
   const [checkResult, setCheckResult] = useState<'idle' | 'up-to-date' | 'available'>('idle')
   const [updateInfo, setUpdateInfo] = useState<any>(null)
+  const [stage, setStage] = useState<InstallStage>('idle')
+  const [percent, setPercent] = useState(0)
+  const [progressMsg, setProgressMsg] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
+  const [preRelease, setPreRelease] = useState(false)
+
+  const isInstalling = stage === 'downloading' || stage === 'extracting' || stage === 'installing'
 
   useEffect(() => {
     window.api?.getAppVersion().then((v: string) => setAppVersion(v || '1.0.0'))
+
+    // Load pre-release preference
+    window.api?.getConfig('include-prerelease').then((v: string | null) => {
+      setPreRelease(v === 'true')
+    })
 
     // Check cached update status
     window.api?.getUpdateStatus().then((result: { hasUpdate: boolean; info: any }) => {
@@ -125,11 +138,25 @@ function UpdateSection() {
     })
 
     // Listen for update events
-    const cleanup = window.api?.onUpdateAvailable((info: any) => {
+    const cleanupUpdate = window.api?.onUpdateAvailable((info: any) => {
       setUpdateInfo(info)
       setCheckResult('available')
     })
-    return () => cleanup?.()
+
+    // Listen for install progress
+    const cleanupProgress = window.api?.onUpdateProgress(
+      (progress: { stage: string; percent?: number; message?: string; error?: string }) => {
+        setStage(progress.stage as InstallStage)
+        if (progress.percent !== undefined) setPercent(progress.percent)
+        if (progress.message) setProgressMsg(progress.message)
+        if (progress.error) setErrorMsg(progress.error)
+      },
+    )
+
+    return () => {
+      cleanupUpdate?.()
+      cleanupProgress?.()
+    }
   }, [])
 
   const handleCheckUpdate = async () => {
@@ -148,6 +175,23 @@ function UpdateSection() {
     } finally {
       setChecking(false)
     }
+  }
+
+  const handleInstall = () => {
+    setStage('downloading')
+    setPercent(0)
+    setProgressMsg('Preparing...')
+    setErrorMsg('')
+    window.api?.installUpdate()
+  }
+
+  const handleRestart = () => {
+    window.api?.restartApp()
+  }
+
+  const handleTogglePreRelease = async (enabled: boolean) => {
+    setPreRelease(enabled)
+    await window.api?.setConfig('include-prerelease', enabled ? 'true' : 'false')
   }
 
   return (
@@ -179,7 +223,7 @@ function UpdateSection() {
           <button
             type="button"
             onClick={handleCheckUpdate}
-            disabled={checking}
+            disabled={checking || isInstalling}
             className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold bg-[var(--color-canvas)] text-[var(--color-ink)] border border-[var(--color-hairline)] rounded-[var(--radius-sm)] cursor-pointer hover:border-[var(--color-primary)]/30 hover:bg-[rgba(255,255,255,0.03)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {checking ? (
@@ -197,15 +241,42 @@ function UpdateSection() {
         </div>
       </div>
 
+      {/* Pre-release toggle */}
+      <div className="flex items-center justify-between px-4 py-3 mb-4 rounded-lg border border-[var(--color-hairline)] bg-[var(--color-canvas-soft)]">
+        <div>
+          <span className="text-sm font-medium text-[var(--color-ink)] block">
+            Include pre-release updates
+          </span>
+          <span className="text-[11px] text-[var(--color-mute)]">
+            Get notified about beta and alpha versions
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => handleTogglePreRelease(!preRelease)}
+          className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer border-none ${
+            preRelease
+              ? 'bg-[var(--color-primary)]'
+              : 'bg-[var(--color-canvas)] border border-[var(--color-hairline)]'
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-transform ${
+              preRelease ? 'translate-x-4 bg-[#101010]' : 'translate-x-0 bg-[var(--color-mute)]'
+            }`}
+          />
+        </button>
+      </div>
+
       {/* Update status */}
-      {checkResult === 'up-to-date' && (
+      {checkResult === 'up-to-date' && stage === 'idle' && (
         <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-[var(--color-hairline)] bg-[var(--color-canvas-soft)]">
           <CheckCircle size={14} className="text-[var(--color-primary)]" />
           <span className="text-sm text-[var(--color-body)]">You're up to date!</span>
         </div>
       )}
 
-      {checkResult === 'available' && updateInfo && (
+      {checkResult === 'available' && updateInfo && stage === 'idle' && (
         <div className="flex items-center justify-between px-4 py-3 rounded-lg border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
           <div className="flex items-center gap-3">
             <Download size={14} className="text-[var(--color-primary)]" />
@@ -220,12 +291,94 @@ function UpdateSection() {
           </div>
           <button
             type="button"
-            onClick={() => window.api?.openRelease(updateInfo.releaseUrl)}
+            onClick={handleInstall}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold bg-[var(--color-primary)] text-[#101010] rounded-[var(--radius-sm)] border-none cursor-pointer hover:brightness-110 transition-all"
           >
-            <ExternalLink size={11} />
-            Download
+            <Download size={11} />
+            Install Update
           </button>
+        </div>
+      )}
+
+      {/* Install progress */}
+      {isInstalling && (
+        <div className="px-4 py-3 rounded-lg border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[12px] font-semibold text-[var(--color-ink)]">
+              {stage === 'downloading'
+                ? 'Downloading'
+                : stage === 'extracting'
+                  ? 'Extracting'
+                  : 'Installing'}
+            </span>
+            {stage === 'downloading' && percent >= 0 && (
+              <span className="text-[11px] font-[var(--font-mono)] text-[var(--color-mute)]">
+                {percent}%
+              </span>
+            )}
+          </div>
+          <div className="h-1.5 bg-[var(--color-canvas)] rounded-full overflow-hidden border border-[var(--color-hairline)]">
+            {stage === 'downloading' && percent >= 0 ? (
+              <div
+                className="h-full bg-[var(--color-primary)] rounded-full transition-all duration-300"
+                style={{ width: `${percent}%` }}
+              />
+            ) : (
+              <div className="h-full bg-[var(--color-primary)] rounded-full w-1/3 animate-[indeterminate_1.5s_ease-in-out_infinite]" />
+            )}
+          </div>
+          <p className="text-[11px] text-[var(--color-mute)] mt-1.5 m-0">{progressMsg}</p>
+          <style>{`
+            @keyframes indeterminate {
+              0% { transform: translateX(-100%); }
+              50% { transform: translateX(200%); }
+              100% { transform: translateX(-100%); }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* Done */}
+      {stage === 'done' && (
+        <div className="flex items-center justify-between px-4 py-3 rounded-lg border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
+          <div className="flex items-center gap-3">
+            <CheckCircle size={14} className="text-[var(--color-primary)]" />
+            <span className="text-sm font-medium text-[var(--color-ink)]">
+              Update installed! Restart to apply.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleRestart}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold bg-[var(--color-primary)] text-[#101010] rounded-[var(--radius-sm)] border-none cursor-pointer hover:brightness-110 transition-all"
+          >
+            Restart Now
+          </button>
+        </div>
+      )}
+
+      {/* Error */}
+      {stage === 'error' && (
+        <div className="px-4 py-3 rounded-lg border border-red-500/20 bg-red-500/5">
+          <div className="flex items-start gap-3">
+            <Download size={14} className="text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium text-red-400 block">Update failed</span>
+              <span className="text-[11px] text-[var(--color-mute)] block mt-1 break-words">
+                {errorMsg}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setStage('idle')
+                setErrorMsg('')
+              }}
+              className="px-3 py-1 text-[11px] font-semibold text-[var(--color-ink)] bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-[var(--radius-sm)] cursor-pointer hover:border-[var(--color-primary)]/30 transition-all shrink-0"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       )}
     </div>

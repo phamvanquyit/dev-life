@@ -1,9 +1,14 @@
 {
   "name": "dev-life",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Developer utilities desktop app for macOS",
   "main": "./out/main/index.js",
   "author": "zobite",
+  "homepage": "https://github.com/phamvanquyit/dev-life",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phamvanquyit/dev-life.git"
+  },
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
