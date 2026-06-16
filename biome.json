@@ -78,7 +78,8 @@
       "!**/out/**",
       "!**/node_modules/**",
       "!**/.vite/**",
-      "!**/*.json"
+      "!**/*.json",
+      "!**/sample-miniapps/**"
     ]
   }
 }

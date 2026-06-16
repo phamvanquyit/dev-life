@@ -1,88 +1,44 @@
-import { Cloud, Home, Languages, Laptop, Rocket, Search, Zap } from 'lucide-react'
+import * as LucideIcons from 'lucide-react'
+import { Box, Home, Package, Search, Settings } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { usePulseGlow } from '../../hooks/useAnimations'
-
-export interface ToolItem {
-  id: string
-  label: string
-  icon: React.ReactNode
-  shortcut: string
-  category: string
-  desc: string
-}
-
-export const tools: ToolItem[] = [
-  {
-    id: 'antigravity-manager',
-    label: 'Antigravity',
-    icon: <Rocket size={16} />,
-    shortcut: '⌘1',
-    category: 'Integrations',
-    desc: 'Manage conversations',
-  },
-  {
-    id: 'ai-proxy',
-    label: 'AI Proxy',
-    icon: <Cloud size={16} />,
-    shortcut: '⌘2',
-    category: 'Integrations',
-    desc: 'Gemini proxy server',
-  },
-  {
-    id: 'system-cleaner',
-    label: 'System Cleaner',
-    icon: <Laptop size={16} />,
-    shortcut: '⌘3',
-    category: 'System',
-    desc: 'Clean disk space',
-  },
-  {
-    id: 'audio-translator',
-    label: 'Audio Translator',
-    icon: <Languages size={16} />,
-    shortcut: '⌘4',
-    category: 'AI Tools',
-    desc: 'English → Vietnamese',
-  },
-]
+import type { MiniAppInfo } from '../../App'
+import AppLogo from '../ui/AppLogo'
 
 interface SidebarProps {
   activeTool: string
   onToolSelect: (id: string) => void
   collapsed: boolean
+  miniApps?: MiniAppInfo[]
+  updateAvailable?: boolean
 }
 
-export default function Sidebar({ activeTool, onToolSelect, collapsed }: SidebarProps) {
+// Resolve a string icon name to a Lucide React component
+function getLucideIcon(name: string, size = 15): React.ReactNode {
+  const icons = LucideIcons as any
+  const Icon = icons[name]
+  if (Icon && typeof Icon === 'function') {
+    return <Icon size={size} />
+  }
+  return <Box size={size} />
+}
+
+export default function Sidebar({
+  activeTool,
+  onToolSelect,
+  collapsed,
+  miniApps = [],
+  updateAvailable = false,
+}: SidebarProps) {
   const [search, setSearch] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
 
-  const filteredTools = useMemo(() => {
-    const visibleTools = tools.filter(
-      (t) => t.id !== 'system-cleaner' && t.id !== 'audio-translator',
-    )
-    if (!search.trim()) return visibleTools
+  const filteredMiniApps = useMemo(() => {
+    if (!search.trim()) return miniApps
     const q = search.toLowerCase()
-    return visibleTools.filter((t) => t.label.toLowerCase().includes(q))
-  }, [search])
-
-  const grouped = useMemo(() => {
-    const groups: Record<string, ToolItem[]> = {}
-    for (const tool of filteredTools) {
-      if (!groups[tool.category]) groups[tool.category] = []
-      groups[tool.category].push(tool)
-    }
-    return groups
-  }, [filteredTools])
-
-  const handleClick = (id: string) => {
-    if (id === 'antigravity-manager') {
-      window.api?.ensureAntigravityRunning?.()
-    }
-    onToolSelect(id)
-  }
+    return miniApps.filter((a) => a.name.toLowerCase().includes(q))
+  }, [search, miniApps])
 
   const isHome = !activeTool
-  const sidebarDotRef = usePulseGlow()
 
   return (
     <div
@@ -94,8 +50,8 @@ export default function Sidebar({ activeTool, onToolSelect, collapsed }: Sidebar
           className={`flex items-center gap-2.5 py-2 px-2.5 rounded-[var(--radius-md)] cursor-pointer transition-all duration-200 relative ${isHome ? 'bg-[var(--color-primary-glow)]' : 'hover:bg-[rgba(255,255,255,0.03)]'}`}
           onClick={() => onToolSelect('')}
         >
-          <div className="w-[30px] h-[30px] flex items-center justify-center rounded-[var(--radius-sm)] bg-linear-to-br from-[var(--color-primary)] to-[var(--color-primary-deep)] text-[var(--color-on-primary)] text-[15px] shrink-0 transition-transform duration-[250ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-[0_2px_8px_rgba(0,217,146,0.2)] hover:scale-[1.06]">
-            <Zap size={15} />
+          <div className="w-[30px] h-[30px] flex items-center justify-center shrink-0 transition-transform duration-[250ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-[1.06]">
+            <AppLogo size={30} />
           </div>
           <div className="flex flex-col gap-px min-w-0">
             <span className="text-[13px] font-semibold text-[var(--color-ink)] leading-[1.2] tracking-[-0.2px]">
@@ -156,25 +112,43 @@ export default function Sidebar({ activeTool, onToolSelect, collapsed }: Sidebar
           </span>
         </div>
 
-        {/* Separator */}
-        <div className="h-px bg-[var(--color-hairline)] mx-2.5 my-2 opacity-60" />
+        {/* Manage Apps */}
+        <div
+          className={`group flex items-center gap-2.5 py-[7px] px-2.5 rounded-[var(--radius-sm)] cursor-pointer text-[13px] transition-all duration-150 select-none [-webkit-app-region:no-drag] relative my-px ${activeTool === 'mini-apps' ? 'bg-[var(--color-primary-glow)] text-[var(--color-primary)]' : 'text-[var(--color-body)] hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--color-ink)]'}`}
+          onClick={() => onToolSelect('mini-apps')}
+        >
+          <span
+            className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-sm bg-[var(--color-primary)] transition-[height] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${activeTool === 'mini-apps' ? 'h-4 shadow-[0_0_8px_rgba(0,217,146,0.3)]' : 'h-0 group-hover:h-3 group-hover:bg-[var(--color-hairline)]'}`}
+          />
+          <span
+            className={`text-[15px] w-5 text-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${activeTool === 'mini-apps' ? 'text-[var(--color-primary)]' : ''}`}
+          >
+            <Package size={15} />
+          </span>
+          <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+            Apps
+          </span>
+        </div>
 
-        {/* Grouped tools */}
-        {Object.entries(grouped).map(([category, items]) => (
-          <div key={category} className="mb-1">
+        {/* Mini Apps section */}
+        {(filteredMiniApps.length > 0 || !search.trim()) && (
+          <div className="mb-1">
             <div className="flex items-center gap-2 pt-3.5 pb-1.5 px-2.5">
               <span className="text-[10px] font-semibold uppercase tracking-[2.52px] text-[var(--color-mute)] whitespace-nowrap shrink-0">
-                {category}
+                Mini Apps
               </span>
               <span className="flex-1 h-px bg-linear-to-r from-[var(--color-hairline)] to-transparent opacity-50" />
             </div>
-            {items.map((tool) => {
-              const isActive = activeTool === tool.id
+
+            {/* Installed mini apps */}
+            {filteredMiniApps.map((app) => {
+              const routeId = `mini/${app.id}`
+              const isActive = activeTool === routeId
               return (
                 <div
-                  key={tool.id}
+                  key={app.id}
                   className={`group flex items-center gap-2.5 py-[7px] px-2.5 rounded-[var(--radius-sm)] cursor-pointer text-[13px] transition-all duration-150 select-none [-webkit-app-region:no-drag] relative my-px ${isActive ? 'bg-[var(--color-primary-glow)] text-[var(--color-primary)]' : 'text-[var(--color-body)] hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--color-ink)]'}`}
-                  onClick={() => handleClick(tool.id)}
+                  onClick={() => onToolSelect(routeId)}
                 >
                   <span
                     className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-sm bg-[var(--color-primary)] transition-[height] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isActive ? 'h-4 shadow-[0_0_8px_rgba(0,217,146,0.3)]' : 'h-0 group-hover:h-3 group-hover:bg-[var(--color-hairline)]'}`}
@@ -182,35 +156,42 @@ export default function Sidebar({ activeTool, onToolSelect, collapsed }: Sidebar
                   <span
                     className={`text-[15px] w-5 text-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${isActive ? 'text-[var(--color-primary)]' : ''}`}
                   >
-                    {tool.icon}
+                    {getLucideIcon(app.icon)}
                   </span>
                   <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-                    {tool.label}
+                    {app.name}
                   </span>
-                  {tool.shortcut && (
-                    <span className="ml-auto text-[10px] font-[var(--font-mono)] text-[var(--color-mute)] bg-[rgba(255,255,255,0.03)] py-0.5 px-[5px] rounded-[3px] border border-[rgba(61,58,57,0.5)] opacity-0 translate-x-1 transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0">
-                      {tool.shortcut}
-                    </span>
-                  )}
                 </div>
               )
             })}
           </div>
-        ))}
+        )}
       </div>
 
-      {/* Footer */}
-      <div className="py-2.5 px-4 border-t border-[var(--color-hairline)] flex items-center justify-between [-webkit-app-region:no-drag] shrink-0">
-        <div className="flex items-center gap-1.5">
+      {/* Settings */}
+      <div className="px-3 pb-1 [-webkit-app-region:no-drag] pb-3">
+        <div
+          className={`group flex items-center gap-2.5 py-[7px] px-2.5 rounded-[var(--radius-sm)] cursor-pointer text-[13px] transition-all duration-150 select-none relative my-px ${activeTool === 'settings' ? 'bg-[var(--color-primary-glow)] text-[var(--color-primary)]' : 'text-[var(--color-mute)] hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--color-ink)]'}`}
+          onClick={() => onToolSelect('settings')}
+        >
           <span
-            ref={sidebarDotRef}
-            className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] shadow-[0_0_6px_rgba(0,217,146,0.5)]"
+            className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-sm bg-[var(--color-primary)] transition-[height] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${activeTool === 'settings' ? 'h-4 shadow-[0_0_8px_rgba(0,217,146,0.3)]' : 'h-0 group-hover:h-3 group-hover:bg-[var(--color-hairline)]'}`}
           />
-          <span className="text-[11px] text-[var(--color-body)]">System Online</span>
+          <span
+            className={`text-[15px] w-5 text-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${activeTool === 'settings' ? 'text-[var(--color-primary)]' : ''}`}
+          >
+            <Settings size={15} />
+          </span>
+          <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+            Settings
+          </span>
+          {updateAvailable && (
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-primary)] opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--color-primary)]" />
+            </span>
+          )}
         </div>
-        <span className="text-[10px] font-[var(--font-mono)] text-[var(--color-mute)] bg-[rgba(255,255,255,0.03)] py-0.5 px-1.5 rounded-[3px] border border-[rgba(61,58,57,0.4)]">
-          v1.0.0
-        </span>
       </div>
     </div>
   )

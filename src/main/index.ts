@@ -1,15 +1,13 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { setupAntigravityIPC } from './antigravity'
-import { setupAudioTranslatorIPC } from './audio-translator'
-import { getActiveBrowserURL } from './browser-detect'
+import { setupAiAgentIPC } from './ai-agent'
+import { setupLlmProvidersIPC } from './llm-providers'
+import { startMcpServer, stopMcpServer } from './mcp-server'
 import { createMenu } from './menu'
-import { setupPasswordHistoryIPC } from './password-history'
-import { autoStartProxy, setupProxyIPC } from './proxy-server'
-import { setupSystemCleanerIPC } from './system-cleaner'
-import { syncAntigravityTokens } from './token-sync'
+import { loadAllMiniApps, setupMiniAppIPC, unloadAllMiniApps } from './mini-app-runtime'
 import { createTray, destroyTray } from './tray'
+import { setupAutoUpdateChecker } from './updater'
 
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
@@ -73,6 +71,9 @@ app.whenReady().then(() => {
 
   const mainWindow = createWindow()
 
+  // Ensure dock icon is visible on macOS
+  app.dock?.show()
+
   // Hide window instead of quitting when clicking the X button
   mainWindow.on('close', (e) => {
     if (!forceQuit) {
@@ -96,17 +97,19 @@ app.whenReady().then(() => {
 
   // IPC handlers
   ipcMain.handle('get-app-version', () => app.getVersion())
-  ipcMain.handle('get-active-browser-url', () => getActiveBrowserURL())
-  setupPasswordHistoryIPC()
-  setupAntigravityIPC()
-  setupProxyIPC()
-  setupSystemCleanerIPC()
-  setupAudioTranslatorIPC()
 
-  // Sync tokens then auto-start proxy
-  syncAntigravityTokens()
-    .then(() => autoStartProxy())
-    .catch((err) => console.error('[startup] Token sync / proxy start failed:', err))
+  setupMiniAppIPC()
+  setupLlmProvidersIPC()
+  setupAiAgentIPC()
+
+  // Load all enabled mini apps
+  loadAllMiniApps()
+
+  // Start embedded MCP server
+  startMcpServer()
+
+  // Setup auto-update checker (checks GitHub Releases periodically)
+  setupAutoUpdateChecker(mainWindow)
 
   app.on('activate', () => {
     const allWindows = BrowserWindow.getAllWindows()
@@ -123,8 +126,10 @@ app.on('window-all-closed', () => {
   // Do nothing — keep app running in background with tray
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
   forceQuit = true
+  await unloadAllMiniApps()
+  stopMcpServer()
   destroyTray()
 })
 

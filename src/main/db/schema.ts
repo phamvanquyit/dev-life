@@ -1,16 +1,5 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-export const passwordHistory = sqliteTable('password_history', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  password: text('password').notNull(),
-  domain: text('domain').notNull().default(''),
-  url: text('url').notNull().default(''),
-  browser: text('browser').notNull().default(''),
-  createdAt: text('created_at')
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-})
-
 export const configurations = sqliteTable('configurations', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   key: text('key').notNull().unique(),
@@ -20,29 +9,57 @@ export const configurations = sqliteTable('configurations', {
     .$defaultFn(() => new Date().toISOString()),
 })
 
-export const antigravityProjects = sqliteTable('antigravity_projects', {
+export const miniApps = sqliteTable('mini_apps', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description').notNull().default(''),
+  icon: text('icon').notNull().default('Box'),
+  category: text('category').notNull().default('Custom'),
+  version: text('version').notNull().default('1.0.0'),
+  backendCode: text('backend_code').notNull().default(''),
+  frontendCode: text('frontend_code').notNull().default(''),
+  panelCode: text('panel_code'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  shortcut: text('shortcut'),
+  displayOrder: integer('display_order').notNull().default(0),
+  createdAt: text('created_at')
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at')
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
+
+export const miniAppStorage = sqliteTable('mini_app_storage', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  name: text('name').notNull().unique(),
-  projectId: text('project_id').notNull().default(''),
-  path: text('path').notNull().default(''),
-  syncedAt: text('synced_at')
+  appId: text('app_id').notNull(),
+  key: text('key').notNull(),
+  value: text('value').notNull().default(''),
+  updatedAt: text('updated_at')
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 })
 
-export const antigravityConversations = sqliteTable('antigravity_conversations', {
-  conversationId: text('conversation_id').primaryKey(),
-  projectName: text('project_name').notNull(),
-  syncedAt: text('synced_at')
+export const llmProviders = sqliteTable('llm_providers', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  provider: text('provider').notNull(), // 'openai' | 'anthropic' | 'google' | 'openrouter' | 'custom'
+  apiKey: text('api_key').notNull(),
+  endpoint: text('endpoint'),
+  models: text('models').notNull().default('[]'), // JSON array of { id, name }
+  createdAt: text('created_at')
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at')
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 })
 
-export type PasswordHistoryEntry = typeof passwordHistory.$inferSelect
-export type NewPasswordHistoryEntry = typeof passwordHistory.$inferInsert
 export type ConfigurationEntry = typeof configurations.$inferSelect
 export type NewConfigurationEntry = typeof configurations.$inferInsert
-export type AntigravityProjectEntry = typeof antigravityProjects.$inferSelect
-export type NewAntigravityProjectEntry = typeof antigravityProjects.$inferInsert
-export type AntigravityConversationEntry = typeof antigravityConversations.$inferSelect
-export type NewAntigravityConversationEntry = typeof antigravityConversations.$inferInsert
+export type MiniAppEntry = typeof miniApps.$inferSelect
+export type NewMiniAppEntry = typeof miniApps.$inferInsert
+export type MiniAppStorageEntry = typeof miniAppStorage.$inferSelect
+export type NewMiniAppStorageEntry = typeof miniAppStorage.$inferInsert
+export type LlmProviderEntry = typeof llmProviders.$inferSelect
+export type NewLlmProviderEntry = typeof llmProviders.$inferInsert

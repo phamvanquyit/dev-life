@@ -1,28 +1,31 @@
-import gsap from 'gsap'
-import { Cloud, Rocket, Zap } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { useGlowPulse, usePulseGlow } from '../../hooks/useAnimations'
+import { Check, Copy, Server } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import AppLogo from '../ui/AppLogo'
 
-interface DashboardProps {
-  onToolSelect: (id: string) => void
+const MCP_PORT = 24816
+const MCP_URL = `http://localhost:${MCP_PORT}/mcp`
+
+type McpClient = 'antigravity' | 'claude'
+
+const CLIENT_LABELS: Record<McpClient, string> = {
+  antigravity: 'Antigravity',
+  claude: 'Claude Desktop',
 }
 
-const quickTools = [
-  {
-    id: 'antigravity-manager',
-    icon: <Rocket size={18} />,
-    label: 'Antigravity',
-    desc: 'Manage Antigravity 2.0 conversations',
-    accent: '#00d992',
-  },
-  {
-    id: 'ai-proxy',
-    icon: <Cloud size={18} />,
-    label: 'AI Proxy',
-    desc: 'OpenAI-compatible proxy for Gemini',
-    accent: '#2fd6a1',
-  },
-]
+function getMcpConfig(client: McpClient): string {
+  // Antigravity uses "serverUrl", Claude Desktop uses "url"
+  const serverEntry = client === 'antigravity' ? { serverUrl: MCP_URL } : { url: MCP_URL }
+
+  return JSON.stringify(
+    {
+      mcpServers: {
+        'dev-life-miniapps': serverEntry,
+      },
+    },
+    null,
+    2,
+  )
+}
 
 function getGreeting(): string {
   const hour = new Date().getHours()
@@ -48,18 +51,102 @@ function getCurrentDate(): string {
   })
 }
 
-export default function Dashboard({ onToolSelect }: DashboardProps) {
+function McpConfigSection() {
+  const [activeClient, setActiveClient] = useState<McpClient>('antigravity')
+  const [copied, setCopied] = useState(false)
+
+  const config = getMcpConfig(activeClient)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(config)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // fallback
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Section heading */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Server size={16} className="text-[var(--color-primary)]" />
+          <span className="text-sm font-semibold tracking-[2.52px] uppercase text-[var(--color-mute)] font-[var(--font-sans)]">
+            MCP SERVER
+          </span>
+        </div>
+      </div>
+
+      <p className="text-sm text-[var(--color-body)] leading-[22px] m-0">
+        Add this config to your AI editor to connect via{' '}
+        <span className="font-[var(--font-mono)] text-[13px] text-[var(--color-canvas-text-soft)] bg-[var(--color-canvas-soft)] px-1.5 py-0.5 rounded">
+          MCP
+        </span>{' '}
+        and manage mini apps with AI.
+      </p>
+
+      {/* Client tabs */}
+      <div className="flex items-center gap-0 border border-[var(--color-hairline)] rounded-md w-fit overflow-hidden">
+        {(Object.keys(CLIENT_LABELS) as McpClient[]).map((client) => (
+          <button
+            type="button"
+            key={client}
+            onClick={() => setActiveClient(client)}
+            className={`px-4 py-2 text-[13px] font-medium transition-colors cursor-pointer border-none outline-none ${
+              activeClient === client
+                ? 'bg-[var(--color-primary)] text-[#101010]'
+                : 'bg-[var(--color-canvas)] text-[var(--color-body)] hover:text-[var(--color-ink)] hover:bg-[var(--color-canvas-soft)]'
+            }`}
+          >
+            {CLIENT_LABELS[client]}
+          </button>
+        ))}
+      </div>
+
+      {/* Code mockup card */}
+      <div className="relative border border-[var(--color-hairline)] rounded-lg bg-[var(--color-canvas)] overflow-hidden">
+        {/* Card header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-hairline)]">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-[var(--color-mute)] font-[var(--font-mono)]">
+              {activeClient === 'antigravity' ? 'mcp_config.json' : 'claude_desktop_config.json'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-[var(--color-hairline)] bg-[var(--color-canvas)] text-[var(--color-body)] hover:text-[var(--color-ink)] hover:bg-[var(--color-canvas-soft)] transition-colors cursor-pointer"
+          >
+            {copied ? (
+              <>
+                <Check size={12} className="text-[var(--color-primary)]" />
+                <span className="text-[var(--color-primary)]">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy size={12} />
+                <span>Copy</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Code block */}
+        <pre className="m-0 px-5 py-4 overflow-x-auto">
+          <code className="font-[var(--font-mono)] text-[13px] leading-[18px] text-[var(--color-canvas-text-soft)]">
+            {config}
+          </code>
+        </pre>
+      </div>
+    </div>
+  )
+}
+
+export default function Dashboard() {
   const [time, setTime] = useState(getCurrentTime())
   const [mounted, setMounted] = useState(false)
-
-  // GSAP refs
-  const glowRef = useGlowPulse(6)
-  const dotRef = usePulseGlow(
-    '0 0 4px rgba(0, 217, 146, 0.3)',
-    '0 0 10px rgba(0, 217, 146, 0.7)',
-    2,
-  )
-  const cardsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -69,51 +156,28 @@ export default function Dashboard({ onToolSelect }: DashboardProps) {
     return () => clearInterval(interval)
   }, [])
 
-  // Card entrance animation
-  useEffect(() => {
-    if (!mounted || !cardsRef.current) return
-    const cards = cardsRef.current.querySelectorAll('[data-card]')
-    gsap.fromTo(
-      cards,
-      { opacity: 0, y: 12 },
-      {
-        opacity: 1,
-        y: 0,
-        duration: 0.4,
-        ease: 'power2.out',
-        stagger: 0.08,
-        delay: 0.2,
-      },
-    )
-  }, [mounted])
-
   return (
     <div
-      className={`flex flex-col h-full p-0 transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
+      className={`max-w-6xl mx-auto w-full transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
     >
-      {/* Hero welcome section */}
-      <div className="relative flex flex-col items-start pt-12 pb-10 overflow-hidden">
-        <div
-          ref={glowRef}
-          className="absolute -top-[60px] -left-10 w-80 h-80 rounded-full bg-[radial-gradient(circle,rgba(0,217,146,0.08)_0%,transparent_70%)] pointer-events-none"
-        />
-
-        <div className="flex items-center gap-2 mb-4 relative z-[1]">
-          <Zap size={16} className="text-[var(--color-primary)]" />
+      {/* Page header — unified pattern */}
+      <div className="flex flex-col items-start pt-2 pb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <AppLogo size={24} />
           <span className="text-sm font-semibold tracking-[2.52px] uppercase text-[var(--color-primary)] font-[var(--font-sans)]">
             DEV LIFE
           </span>
         </div>
 
-        <h1 className="text-5xl font-normal tracking-[-0.65px] leading-[56px] text-[var(--color-ink-strong)] m-0 mb-3 relative z-[1]">
+        <h1 className="text-5xl font-normal tracking-[-0.65px] leading-[56px] text-[var(--color-ink-strong)] m-0 mb-3">
           {getGreeting()}, <span className="text-[var(--color-primary)]">Developer</span>
         </h1>
 
-        <p className="text-base font-normal leading-[26px] text-[var(--color-body)] max-w-[480px] m-0 mb-5 relative z-[1]">
+        <p className="text-base font-normal leading-[26px] text-[var(--color-body)] max-w-[480px] m-0 mb-5">
           Your everyday developer toolkit. Fast, offline, and beautiful.
         </p>
 
-        <div className="flex items-center gap-3 relative z-[1]">
+        <div className="flex items-center gap-3">
           <span className="font-[var(--font-mono)] text-2xl font-[550] text-[var(--color-ink)] tracking-[-0.3px]">
             {time}
           </span>
@@ -123,68 +187,10 @@ export default function Dashboard({ onToolSelect }: DashboardProps) {
       </div>
 
       {/* Dashed section divider */}
-      <div className="w-full h-px border-t border-dashed border-[rgba(79,93,117,0.4)] mt-2 mb-8" />
+      <div className="w-full h-px border-t border-dashed border-[rgba(79,93,117,0.4)] mb-8" />
 
-      {/* Quick access section */}
-      <div className="flex-1 min-h-0">
-        <div className="text-xs font-semibold tracking-[2.52px] uppercase text-[var(--color-mute)] mb-4">
-          QUICK ACCESS
-        </div>
-        <div ref={cardsRef} className="grid grid-cols-2 gap-3">
-          {quickTools.map((tool) => (
-            <div
-              key={tool.id}
-              data-card
-              className="group flex items-center gap-3.5 py-4 px-[18px] bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-[var(--radius-md)] cursor-pointer transition-all duration-200 relative overflow-hidden opacity-0 before:content-[''] before:absolute before:inset-0 before:bg-linear-to-br before:from-[rgba(0,217,146,0.04)] before:to-transparent before:opacity-0 before:transition-opacity before:duration-[250ms] before:pointer-events-none hover:border-[var(--color-primary)] hover:shadow-[0_0_15px_rgba(0,217,146,0.08)] hover:before:opacity-100 active:scale-[0.985]"
-              onClick={() => {
-                if (tool.id === 'antigravity-manager') {
-                  window.api?.ensureAntigravityRunning?.()
-                }
-                onToolSelect(tool.id)
-              }}
-            >
-              <div
-                className="w-10 h-10 flex items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-primary-glow)] text-lg shrink-0 transition-transform duration-200 group-hover:scale-[1.08]"
-                style={{ color: tool.accent }}
-              >
-                {tool.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-[var(--color-ink)] leading-5">
-                  {tool.label}
-                </div>
-                <div className="text-xs text-[var(--color-mute)] leading-4 mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
-                  {tool.desc}
-                </div>
-              </div>
-              <div className="text-base text-[var(--color-mute)] shrink-0 transition-all duration-200 group-hover:text-[var(--color-primary)] group-hover:translate-x-[3px]">
-                →
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Status bar */}
-      <div className="flex items-center gap-6 pt-5 mt-auto border-t border-dashed border-[rgba(79,93,117,0.4)]">
-        <div className="flex items-center gap-2">
-          <span
-            ref={dotRef}
-            className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] shadow-[0_0_8px_rgba(0,217,146,0.5)]"
-          />
-          <span className="text-xs text-[var(--color-body)]">System Online</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="font-[var(--font-mono)] text-[11px] text-[var(--color-mute)]">
-            v1.0.0
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="font-[var(--font-mono)] text-[11px] text-[var(--color-mute)]">
-            Electron + React
-          </span>
-        </div>
-      </div>
+      {/* MCP Config Section */}
+      <McpConfigSection />
     </div>
   )
 }

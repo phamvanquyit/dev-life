@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/trayIconTemplate@2x.png" alt="Dev Life" width="64" height="64">
+  <img src="resources/logo.svg" alt="Dev Life" width="128" height="128">
 </p>
 
 <h1 align="center">Dev Life</h1>
@@ -11,7 +11,6 @@
 <p align="center">
   <a href="https://github.com/phamvanquyit/dev-life/releases"><img src="https://img.shields.io/github/v/release/phamvanquyit/dev-life?style=flat-square" alt="Release"></a>
   <a href="https://github.com/phamvanquyit/dev-life/blob/main/LICENSE"><img src="https://img.shields.io/github/license/phamvanquyit/dev-life?style=flat-square" alt="License"></a>
-  <a href="https://github.com/phamvanquyit/dev-life/actions"><img src="https://img.shields.io/github/actions/workflow/status/phamvanquyit/dev-life/ci.yml?style=flat-square" alt="CI"></a>
 </p>
 
 ---
@@ -25,15 +24,34 @@
 - 💾 Local SQLite database for conversation persistence
 - ⚡ Built with Electron + React + TypeScript for native performance
 
-## 📋 Prerequisites
+## 📥 Install
+
+### One-liner (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/phamvanquyit/dev-life/main/scripts/install.sh | bash
+```
+
+### Manual download
+
+1. Download the latest `.dmg` from [Releases](https://github.com/phamvanquyit/dev-life/releases/latest)
+2. Open the `.dmg` and drag **Dev Life** to `/Applications`
+3. Remove the quarantine flag (app is unsigned):
+   ```bash
+   xattr -cr /Applications/Dev\ Life.app
+   ```
+
+> **Note:** The app is not code-signed. macOS Gatekeeper will block it on first launch unless you remove the quarantine attribute with the command above.
+
+## 🚀 Development
+
+### Prerequisites
 
 - **macOS** 12.0 or later
 - **Node.js** >= 18
-- **Bun** >= 1.0 (recommended) or npm
+- **Bun** >= 1.0
 
-## 🚀 Getting Started
-
-### Installation
+### Setup
 
 ```bash
 # Clone the repository
@@ -42,20 +60,7 @@ cd dev-life
 
 # Install dependencies
 bun install
-```
 
-### Environment Setup
-
-```bash
-# Copy the example environment file
-cp .env.example .env
-
-# Edit .env and add your API keys
-```
-
-### Development
-
-```bash
 # Start the app in development mode
 bun dev
 ```
@@ -70,13 +75,6 @@ bun run build:mac
 bun run build:unpack
 ```
 
-### Preview Production Build
-
-```bash
-# Build and run the production version
-./preview.sh
-```
-
 ## 🏗️ Project Structure
 
 ```
@@ -85,56 +83,42 @@ dev-life/
 │   ├── main/          # Electron main process
 │   ├── preload/       # Preload scripts (IPC bridge)
 │   └── renderer/      # React frontend (renderer process)
-│       └── src/
 ├── resources/         # App icons and static assets
 ├── scripts/           # Build & release scripts
 ├── electron.vite.config.ts
-├── tsconfig.json
-├── tsconfig.node.json
-├── tsconfig.web.json
-├── biome.json
 └── package.json
 ```
 
 ## 🛠️ Tech Stack
 
-| Layer       | Technology                            |
-|-------------|---------------------------------------|
-| Framework   | Electron 35                           |
-| Frontend    | React 19, React Router 7             |
-| Styling     | Tailwind CSS 4, Ant Design 5         |
-| State       | Zustand                              |
-| AI / LLM    | LangChain, Vercel AI SDK, OpenAI     |
-| Database    | better-sqlite3, Drizzle ORM          |
-| Build       | electron-vite, Vite                  |
-| Lint/Format | Biome 2                              |
-| Language    | TypeScript 5                          |
+| Layer       | Technology                        |
+|-------------|-----------------------------------|
+| Framework   | Electron 35                       |
+| Frontend    | React 19, React Router 7         |
+| Styling     | Tailwind CSS 4, Ant Design 5     |
+| State       | Zustand                          |
+| AI / LLM    | LangChain, Vercel AI SDK, OpenAI |
+| Database    | better-sqlite3, Drizzle ORM      |
+| Build       | electron-vite, Vite              |
+| Lint/Format | Biome 2                          |
+| Language    | TypeScript 5                     |
 
 ## 📝 Scripts
 
-| Command              | Description                          |
-|----------------------|--------------------------------------|
-| `bun dev`            | Start development server             |
-| `bun run build`      | Build all processes                  |
-| `bun run preview`    | Preview production build             |
-| `bun run lint`       | Run linter                           |
-| `bun run format`     | Format code                          |
-| `bun run check`      | Lint + format (auto-fix)             |
-| `bun run build:mac`  | Build macOS distributable (.dmg)     |
-| `bun run build:unpack` | Build unpacked app for testing     |
+| Command                | Description                      |
+|------------------------|----------------------------------|
+| `bun dev`              | Start development server         |
+| `bun run build`        | Build all processes              |
+| `bun run build:mac`    | Build macOS distributable (.dmg) |
+| `bun run build:unpack` | Build unpacked app for testing   |
+| `bun run lint`         | Run linter                       |
+| `bun run format`       | Format code                      |
+| `bun run check`        | Lint + format (auto-fix)         |
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a Pull Request.
+Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) before submitting a Pull Request.
 
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
-
-## 🔒 Security
-
-If you discover a security vulnerability, please follow our [Security Policy](SECURITY.md).
-
-## 📜 Code of Conduct
-
-This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.

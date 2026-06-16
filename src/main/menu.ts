@@ -53,25 +53,6 @@ export function createMenu(
       ],
     },
 
-    // Tools Menu
-    {
-      label: 'Tools',
-      submenu: [
-        {
-          label: 'Antigravity Manager',
-          click: () => onToolSelect('antigravity-manager'),
-        },
-        {
-          label: 'AI Proxy',
-          click: () => onToolSelect('ai-proxy'),
-        },
-        {
-          label: 'Audio Translator',
-          click: () => onToolSelect('audio-translator'),
-        },
-      ],
-    },
-
     // View Menu
     {
       label: 'View',

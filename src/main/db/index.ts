@@ -25,40 +25,47 @@ export function getDb() {
 
   // Create tables if they don't exist
   sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS password_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      password TEXT NOT NULL,
-      domain TEXT NOT NULL DEFAULT '',
-      url TEXT NOT NULL DEFAULT '',
-      browser TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
     CREATE TABLE IF NOT EXISTS configurations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       key TEXT NOT NULL UNIQUE,
       value TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
-    CREATE TABLE IF NOT EXISTS antigravity_projects (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      project_id TEXT NOT NULL DEFAULT '',
-      path TEXT NOT NULL DEFAULT '',
-      synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+    CREATE TABLE IF NOT EXISTS mini_apps (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      icon TEXT NOT NULL DEFAULT 'Box',
+      category TEXT NOT NULL DEFAULT 'Custom',
+      version TEXT NOT NULL DEFAULT '1.0.0',
+      backend_code TEXT NOT NULL DEFAULT '',
+      frontend_code TEXT NOT NULL DEFAULT '',
+      panel_code TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      shortcut TEXT,
+      display_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
-    CREATE TABLE IF NOT EXISTS antigravity_conversations (
-      conversation_id TEXT PRIMARY KEY,
-      project_name TEXT NOT NULL,
-      synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+    CREATE TABLE IF NOT EXISTS mini_app_storage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      app_id TEXT NOT NULL REFERENCES mini_apps(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(app_id, key)
+    );
+    CREATE TABLE IF NOT EXISTS llm_providers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      api_key TEXT NOT NULL,
+      endpoint TEXT,
+      models TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `)
-
-  // Migration: add project_id column if it doesn't exist
-  try {
-    sqlite.exec(`ALTER TABLE antigravity_projects ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`)
-  } catch {
-    // Column already exists
-  }
 
   db = drizzle(sqlite, { schema })
   return db
