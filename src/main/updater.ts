@@ -269,8 +269,18 @@ async function downloadAndInstallUpdate(
     const backupPath = `${currentAppPath}.bak`
 
     // Remove leftover backup from a previous failed attempt
+    // NOTE: Temporarily disable Electron's asar support so that rmSync
+    // treats .asar files as regular files instead of virtual directories.
+    // Without this, rmSync({ recursive: true }) calls rmdir on app.asar
+    // which fails with ENOTDIR.
     if (existsSync(backupPath)) {
-      rmSync(backupPath, { recursive: true, force: true })
+      const prevNoAsar = process.noAsar
+      process.noAsar = true
+      try {
+        rmSync(backupPath, { recursive: true, force: true })
+      } finally {
+        process.noAsar = prevNoAsar
+      }
     }
 
     // Backup: atomic rename on same filesystem
@@ -300,21 +310,37 @@ async function downloadAndInstallUpdate(
 
       // Verify new bundle integrity
       const macosDir = join(currentAppPath, 'Contents', 'MacOS')
-      if (!existsSync(macosDir)) {
-        throw new Error('New app bundle appears invalid (missing Contents/MacOS)')
+      const prevNoAsar2 = process.noAsar
+      process.noAsar = true
+      try {
+        if (!existsSync(macosDir)) {
+          throw new Error('New app bundle appears invalid (missing Contents/MacOS)')
+        }
+      } finally {
+        process.noAsar = prevNoAsar2
       }
 
       // Remove backup
-      rmSync(backupPath, { recursive: true, force: true })
+      const prevNoAsar3 = process.noAsar
+      process.noAsar = true
+      try {
+        rmSync(backupPath, { recursive: true, force: true })
+      } finally {
+        process.noAsar = prevNoAsar3
+      }
     } catch (installError) {
       // ── ROLLBACK ──────────────────────────────────────────────────
       console.error('[Updater] Install failed, rolling back:', installError)
+      const prevNoAsar4 = process.noAsar
+      process.noAsar = true
       try {
         if (existsSync(currentAppPath)) {
           rmSync(currentAppPath, { recursive: true, force: true })
         }
       } catch {
         /* ignore cleanup during rollback */
+      } finally {
+        process.noAsar = prevNoAsar4
       }
       if (existsSync(backupPath)) {
         execFileSync('mv', [backupPath, currentAppPath])
