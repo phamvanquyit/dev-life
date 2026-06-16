@@ -37,6 +37,7 @@ export default function App() {
   const location = useLocation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [miniApps, setMiniApps] = useState<MiniAppInfo[]>([])
+  const [appVersion, setAppVersion] = useState('...')
   const [updateInfo, setUpdateInfo] = useState<any>(null)
   const [showUpdateDialog, setShowUpdateDialog] = useState(false)
   const [bannerDismissed, setBannerDismissed] = useState(false)
@@ -56,6 +57,7 @@ export default function App() {
 
   useEffect(() => {
     loadMiniApps()
+    window.api?.getAppVersion().then((v: string) => setAppVersion(v || '0.0.0'))
   }, [loadMiniApps])
 
   // Reload mini apps periodically while on manager page (so sidebar updates on toggle)
@@ -152,7 +154,7 @@ export default function App() {
             )}
             <span className="flex-1" />
             <span className="text-[10px] text-[var(--color-mute)] font-[var(--font-mono)] [-webkit-app-region:no-drag]">
-              v1.0.0
+              v{appVersion}
             </span>
           </div>
 

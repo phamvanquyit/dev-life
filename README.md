@@ -17,12 +17,13 @@
 
 ## ✨ Features
 
-- 🤖 AI-powered developer assistant with multi-model support
-- 🎙️ Voice interaction with real-time speech detection
-- 📊 Mermaid diagram rendering
-- 🔧 MCP (Model Context Protocol) integration
-- 💾 Local SQLite database for conversation persistence
-- ⚡ Built with Electron + React + TypeScript for native performance
+- 🧩 **Mini App Platform** — Create, install, and manage mini apps with frontend (React/JSX), backend (Node.js), and panel support
+- 🔧 **MCP Server** — Built-in Model Context Protocol server so AI editors (Claude Desktop, Antigravity) can manage mini apps
+- 🤖 **AI Agent** — Integrated AI coding assistant with multi-provider support (OpenAI, Anthropic, Google) for building mini apps
+- 🖥️ **Menu Bar App** — System tray with quick access panel for everyday developer utilities
+- 🔄 **In-App Auto-Update** — Download, install, and restart updates directly from within the app
+- 💾 **Local SQLite** — Persistent storage for mini app data, configurations, and LLM providers
+- ⚡ **Built with Electron + React + TypeScript** for native macOS performance
 
 ## 📥 Install
 

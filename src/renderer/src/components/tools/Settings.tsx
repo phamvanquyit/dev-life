@@ -122,7 +122,7 @@ function UpdateSection() {
   const isInstalling = stage === 'downloading' || stage === 'extracting' || stage === 'installing'
 
   useEffect(() => {
-    window.api?.getAppVersion().then((v: string) => setAppVersion(v || '1.0.0'))
+    window.api?.getAppVersion().then((v: string) => setAppVersion(v || '...'))
 
     // Load pre-release preference
     window.api?.getConfig('include-prerelease').then((v: string | null) => {

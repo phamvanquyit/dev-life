@@ -1,6 +1,6 @@
 {
   "name": "dev-life",
-  "version": "0.0.8",
+  "version": "0.0.9-beta.1",
   "description": "Developer utilities desktop app for macOS",
   "main": "./out/main/index.js",
   "author": "zobite",
