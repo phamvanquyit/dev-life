@@ -112,12 +112,6 @@ else
   echo -e "Release: ${GREEN}v${NEW_VERSION}${NC} ${DIM}(stable)${NC}"
 fi
 
-# Confirm
-read -p "$(echo -e "${BOLD}Proceed? [Y/n]:${NC} ")" CONFIRM
-if [[ "$CONFIRM" =~ ^[Nn]$ ]]; then
-  echo -e "${YELLOW}Aborted.${NC}"
-  exit 0
-fi
 
 # ─── Phase 1: Trial Build (verify no errors before bumping version) ───────────
 
@@ -186,25 +180,20 @@ echo -e "${GREEN}Pushed commit + tag to origin${NC}"
 
 # ─── GitHub Release ─────────────────────────────────────────────────────────
 
-# Collect built artifacts
-DMG_FILE=$(ls dist/*.dmg 2>/dev/null | head -1)
-ZIP_FILE=$(ls dist/*.zip 2>/dev/null | head -1)
-ARTIFACTS=""
-[ -f "$DMG_FILE" ] && ARTIFACTS="$ARTIFACTS $DMG_FILE"
-[ -f "$ZIP_FILE" ] && ARTIFACTS="$ARTIFACTS $ZIP_FILE"
+# Collect built artifacts using shell globbing (safe for spaces)
+ARTIFACTS=()
+for file in dist/*.dmg dist/*.zip; do
+  [ -f "$file" ] && ARTIFACTS+=("$file")
+done
 
-if command -v gh &> /dev/null && [ -n "$ARTIFACTS" ]; then
-  echo ""
-  read -p "$(echo -e "${BOLD}Create GitHub Release and upload artifacts? [Y/n]:${NC} ")" GH_CONFIRM
-  if [[ ! "$GH_CONFIRM" =~ ^[Nn]$ ]]; then
-    GH_FLAGS="--title \"v${NEW_VERSION}\" --generate-notes"
-    if [ "$IS_PRERELEASE" = true ]; then
-      gh release create "v${NEW_VERSION}" $ARTIFACTS --title "v${NEW_VERSION}" --generate-notes --prerelease
-    else
-      gh release create "v${NEW_VERSION}" $ARTIFACTS --title "v${NEW_VERSION}" --generate-notes
-    fi
-    echo -e "${GREEN}GitHub Release created!${NC}"
+if command -v gh &> /dev/null && [ ${#ARTIFACTS[@]} -gt 0 ]; then
+  echo -e "\n${BLUE}Creating GitHub Release...${NC}"
+  if [ "$IS_PRERELEASE" = true ]; then
+    gh release create "v${NEW_VERSION}" "${ARTIFACTS[@]}" --title "v${NEW_VERSION}" --generate-notes --prerelease
+  else
+    gh release create "v${NEW_VERSION}" "${ARTIFACTS[@]}" --title "v${NEW_VERSION}" --generate-notes
   fi
+  echo -e "${GREEN}GitHub Release created!${NC}"
 else
   if ! command -v gh &> /dev/null; then
     echo -e "\n${DIM}Tip: Install GitHub CLI (gh) to auto-create releases${NC}"
