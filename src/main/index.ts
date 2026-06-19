@@ -1,7 +1,6 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, ipcMain, nativeImage, shell } from 'electron'
-import { setupAiAgentIPC } from './ai-agent'
 import { setupLlmProvidersIPC } from './llm-providers'
 import { startMcpServer, stopMcpServer } from './mcp-server'
 import { createMenu } from './menu'
@@ -48,6 +47,13 @@ function createWindow(): BrowserWindow {
 
 app.setName('Dev Life')
 
+// Prevent multiple instances — if another instance is already running, quit this one
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  app.quit()
+  process.exit(0)
+}
+
 let forceQuit = false
 
 app.whenReady().then(() => {
@@ -58,6 +64,15 @@ app.whenReady().then(() => {
   })
 
   const mainWindow = createWindow()
+
+  // Focus existing window when a second instance tries to launch
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
 
   // Ensure dock icon is visible on macOS
   app.dock?.show()
@@ -76,9 +91,9 @@ app.whenReady().then(() => {
     }
   }
 
-  // Hide window instead of quitting when clicking the X button
+  // Hide window instead of quitting when clicking the X button (only in production)
   mainWindow.on('close', (e) => {
-    if (!forceQuit) {
+    if (!is.dev && !forceQuit) {
       e.preventDefault()
       mainWindow.hide()
     }
@@ -102,7 +117,6 @@ app.whenReady().then(() => {
 
   setupMiniAppIPC()
   setupLlmProvidersIPC()
-  setupAiAgentIPC()
 
   // Load all enabled mini apps
   loadAllMiniApps()
@@ -125,7 +139,10 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  // Do nothing — keep app running in background with tray
+  if (is.dev) {
+    app.quit()
+  }
+  // Otherwise do nothing — keep app running in background with tray
 })
 
 app.on('before-quit', async () => {
@@ -139,6 +156,7 @@ app.on('before-quit', async () => {
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
   process.on(signal, () => {
     destroyTray()
-    app.quit()
+    stopMcpServer()
+    app.exit(0)
   })
 }

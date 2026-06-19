@@ -96,7 +96,7 @@ const MONACO_OPTIONS = {
 const handleEditorBeforeMount: BeforeMount = (monaco) => {
   monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
     jsx: monaco.languages.typescript.JsxEmit.React,
-    jsxFactory: 'h',
+    jsxFactory: '__jsx',
     target: monaco.languages.typescript.ScriptTarget.Latest,
     allowNonTsExtensions: true,
     allowJs: true,

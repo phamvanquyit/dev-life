@@ -1,7 +1,6 @@
-import childProcess from 'node:child_process'
+import childProcess, { type ChildProcess, execSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
-import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import AdmZip from 'adm-zip'
@@ -13,7 +12,6 @@ import {
   app as electronApp,
   ipcMain,
   Notification,
-  screen,
   shell,
   systemPreferences,
 } from 'electron'
@@ -28,9 +26,6 @@ export interface MiniAppRecord {
   icon: string
   category: string
   version: string
-  backend_code: string
-  frontend_code: string
-  panel_code: string | null
   enabled: number
   shortcut: string | null
   display_order: number
@@ -40,6 +35,7 @@ export interface MiniAppRecord {
 
 interface MiniAppBackendInstance {
   appId: string
+  process?: ChildProcess
   cleanup?: () => void | Promise<void>
   timers: Set<ReturnType<typeof setTimeout>>
   intervals: Set<ReturnType<typeof setInterval>>
@@ -227,170 +223,463 @@ function prefixTables(sql: string, prefix: string): string {
   )
 }
 
-// ─── Backend Code Loader ─────────────────────────────────────────────────────
+// ─── Filesystem Helpers (v2) ─────────────────────────────────────────────────
+
+function getAppsDir(): string {
+  return path.join(os.homedir(), '.dev-life', 'apps')
+}
+
+function getSandboxRunnerPath(): string {
+  // In dev mode, it's in resources/ next to the source
+  // In production, it's in the app's resources directory
+  const devPath = path.join(__dirname, '../../resources/sandbox-runner.js')
+  const prodPath = path.join(process.resourcesPath, 'sandbox-runner.js')
+  return fs.existsSync(devPath) ? devPath : prodPath
+}
+
+/**
+ * Write app code files to filesystem (v2 — filesystem is source of truth).
+ * Creates directory structure: ~/.dev-life/apps/{app-id}/backend/index.js etc.
+ */
+function writeAppCode(
+  appId: string,
+  code: { backendCode?: string; frontendCode?: string; panelCode?: string | null },
+): string {
+  const appDir = path.join(getAppsDir(), appId)
+
+  if (code.backendCode !== undefined) {
+    fs.mkdirSync(path.join(appDir, 'backend'), { recursive: true })
+    fs.writeFileSync(path.join(appDir, 'backend', 'index.js'), code.backendCode || '', 'utf8')
+  }
+
+  if (code.frontendCode !== undefined) {
+    fs.mkdirSync(path.join(appDir, 'frontend'), { recursive: true })
+    fs.writeFileSync(path.join(appDir, 'frontend', 'index.jsx'), code.frontendCode || '', 'utf8')
+  }
+
+  if (code.panelCode !== undefined) {
+    fs.mkdirSync(path.join(appDir, 'panel'), { recursive: true })
+    fs.writeFileSync(path.join(appDir, 'panel', 'index.jsx'), code.panelCode || '', 'utf8')
+  }
+
+  return appDir
+}
+
+/**
+ * Write manifest.json to app directory.
+ */
+function writeAppManifest(app: MiniAppRecord): void {
+  const appDir = path.join(getAppsDir(), app.id)
+  fs.mkdirSync(appDir, { recursive: true })
+
+  const configSchema = getAppConfigSchema(app.id)
+  const manifest: Record<string, any> = {
+    name: app.name,
+    version: app.version,
+    icon: app.icon,
+    category: app.category,
+    description: app.description,
+  }
+  if (configSchema) {
+    manifest.config = configSchema
+  }
+  fs.writeFileSync(path.join(appDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8')
+}
+
+/**
+ * Read app code from filesystem (v2 — filesystem is source of truth).
+ */
+export function readAppCode(appId: string): {
+  backendCode: string
+  frontendCode: string
+  panelCode: string | null
+} {
+  const appDir = path.join(getAppsDir(), appId)
+
+  const readIfExists = (filePath: string): string => {
+    try {
+      return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : ''
+    } catch {
+      return ''
+    }
+  }
+
+  const backendCode = readIfExists(path.join(appDir, 'backend', 'index.js'))
+  const frontendCode = readIfExists(path.join(appDir, 'frontend', 'index.jsx'))
+  const panelRaw = readIfExists(path.join(appDir, 'panel', 'index.jsx'))
+  const panelCode = panelRaw.trim() ? panelRaw : null
+
+  return { backendCode, frontendCode, panelCode }
+}
+
+/**
+ * Check if app has backend code on filesystem.
+ */
+function hasBackendCode(appId: string): boolean {
+  const filePath = path.join(getAppsDir(), appId, 'backend', 'index.js')
+  try {
+    return fs.existsSync(filePath) && fs.readFileSync(filePath, 'utf8').trim().length > 0
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Delete app directory from filesystem.
+ */
+function deleteAppDirectory(appId: string): void {
+  const appDir = path.join(getAppsDir(), appId)
+  try {
+    if (fs.existsSync(appDir)) {
+      fs.rmSync(appDir, { recursive: true, force: true })
+    }
+  } catch (e) {
+    console.error(`[miniapp] Failed to delete app directory ${appDir}:`, e)
+  }
+}
+
+/**
+ * Install npm dependencies if package.json exists in app directory.
+ */
+function installDependencies(appDir: string): void {
+  const pkgPath = path.join(appDir, 'package.json')
+  if (!fs.existsSync(pkgPath)) return
+
+  const nodeModulesPath = path.join(appDir, 'node_modules')
+  // Skip if node_modules already exists (assume installed)
+  // User can delete node_modules to force reinstall
+  if (fs.existsSync(nodeModulesPath)) return
+
+  try {
+    console.log(`[miniapp] Installing dependencies in ${appDir}...`)
+    execSync('npm install --production --no-audit --no-fund', {
+      cwd: appDir,
+      timeout: 60000, // 60s timeout
+      stdio: 'pipe',
+    })
+    console.log(`[miniapp] Dependencies installed for ${path.basename(appDir)}`)
+  } catch (e) {
+    console.error(`[miniapp] npm install failed in ${appDir}:`, e)
+  }
+}
+
+// ─── Backend Code Loader (v2 — Child Process) ───────────────────────────────
 
 function loadBackendCode(app: MiniAppRecord): MiniAppBackendInstance {
   const appId = app.id
   const timerIds = new Set<ReturnType<typeof setTimeout>>()
   const intervalIds = new Set<ReturnType<typeof setInterval>>()
 
-  if (!app.backend_code || app.backend_code.trim() === '') {
+  // v2: Check filesystem for backend code
+  if (!hasBackendCode(appId)) {
     return { appId, timers: timerIds, intervals: intervalIds }
   }
 
   try {
-    const ipcBus = getAppIpcBus(appId)
-    const storage = getAppStorage(appId)
+    const appDir = path.join(getAppsDir(), appId)
 
-    // Build a scoped DB proxy — mini apps can only use tables prefixed with miniapp_{short_id}_
+    // Step 2: Install dependencies if needed
+    installDependencies(appDir)
+
+    // Step 3: Fork child process
+    const sandboxRunnerPath = getSandboxRunnerPath()
+    const appConfig = getAppConfigValues(appId)
+
+    const child = childProcess.fork(sandboxRunnerPath, [], {
+      env: {
+        ...process.env,
+        APP_DIR: appDir,
+        APP_ID: appId,
+        APP_CONFIG: JSON.stringify(appConfig),
+        APP_PATH: electronApp.getPath('userData'),
+      },
+      stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+      silent: true,
+    })
+
+    // Pipe child stdout/stderr to main console
+    child.stdout?.on('data', (data: Buffer) => {
+      console.log(`[miniapp:${app.name}:stdout]`, data.toString().trim())
+    })
+    child.stderr?.on('data', (data: Buffer) => {
+      console.error(`[miniapp:${app.name}:stderr]`, data.toString().trim())
+    })
+
+    // Build scoped DB and storage for IPC proxy
+    const storage = getAppStorage(appId)
     const shortId = appId.slice(0, 8)
     const tablePrefix = `miniapp_${shortId}_`
     const sqlite = getSqlite()
 
-    const scopedDb = {
-      /**
-       * Run a query (INSERT, UPDATE, DELETE, CREATE TABLE, etc.)
-       * Table names are auto-prefixed with miniapp_{id}_
-       */
-      run(sql: string, ...params: any[]) {
-        const safeSql = prefixTables(sql, tablePrefix)
-        return sqlite.prepare(safeSql).run(...params)
-      },
-      /**
-       * Query a single row
-       */
-      get(sql: string, ...params: any[]) {
-        const safeSql = prefixTables(sql, tablePrefix)
-        return sqlite.prepare(safeSql).get(...params)
-      },
-      /**
-       * Query all rows
-       */
-      all(sql: string, ...params: any[]) {
-        const safeSql = prefixTables(sql, tablePrefix)
-        return sqlite.prepare(safeSql).all(...params)
-      },
-      /** The table prefix used for this mini app */
-      tablePrefix,
-    }
+    // Handle messages from child process
+    child.on('message', (msg: any) => {
+      if (!msg || !msg.type) return
 
-    // Build config object from storage
-    const appConfig = getAppConfigValues(appId)
-
-    // Build context object for the mini app backend
-    const miniAppRequire = createRequire(import.meta.url)
-    const ctx = {
-      appId,
-      log: (...args: any[]) => {
-        console.log(`[miniapp:${app.name}]`, ...args)
-        // Pipe to renderer for the logs panel
-        for (const win of BrowserWindow.getAllWindows()) {
-          win.webContents.send('miniapp:log', {
-            appId,
-            appName: app.name,
-            timestamp: Date.now(),
-            args: args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))),
-          })
+      switch (msg.type) {
+        case 'log': {
+          console.log(`[miniapp:${app.name}]`, ...(msg.args || []))
+          for (const win of BrowserWindow.getAllWindows()) {
+            win.webContents.send('miniapp:log', {
+              appId,
+              appName: app.name,
+              timestamp: Date.now(),
+              args: msg.args || [],
+            })
+          }
+          break
         }
-      },
-      ipc: ipcBus,
-      storage,
-      db: scopedDb,
-      // ─── Mini App Config (from manifest) ────────────────────────────
-      config: appConfig,
-      // ─── Node.js APIs ──────────────────────────────────────────────
-      require: miniAppRequire,
-      fs,
-      path,
-      os,
-      crypto,
-      childProcess,
-      // ─── Electron APIs ─────────────────────────────────────────────
-      shell, // shell.openExternal(), shell.openPath(), etc.
-      dialog, // dialog.showOpenDialog(), dialog.showSaveDialog(), etc.
-      clipboard, // clipboard.readText(), clipboard.writeText(), etc.
-      desktopCapturer, // desktopCapturer.getSources() — for screen recording
-      screen, // screen.getPrimaryDisplay(), screen.getAllDisplays(), etc.
-      Notification, // new Notification({ title, body }).show()
-      systemPreferences, // systemPreferences.getMediaAccessStatus('microphone')
-      // ─── Utilities ─────────────────────────────────────────────────
-      fetch: globalThis.fetch, // Native fetch (Node 18+)
-      appPath: electronApp.getPath('userData'),
-      homePath: os.homedir(),
-      tmpPath: os.tmpdir(),
-      // ─── Timers (auto-cleanup on unload) ────────────────────────────
-      setTimeout: (fn: () => void, ms: number) => {
-        const id = setTimeout(() => {
-          try {
-            fn()
-          } catch (e) {
-            console.error(`[miniapp:${app.name}] Timer error:`, e)
-          }
-        }, ms)
-        timerIds.add(id)
-        return id
-      },
-      setInterval: (fn: () => void, ms: number) => {
-        const id = setInterval(() => {
-          try {
-            fn()
-          } catch (e) {
-            console.error(`[miniapp:${app.name}] Interval error:`, e)
-          }
-        }, ms)
-        intervalIds.add(id)
-        return id
-      },
-      clearTimeout: (id: ReturnType<typeof setTimeout>) => {
-        clearTimeout(id)
-        timerIds.delete(id)
-      },
-      clearInterval: (id: ReturnType<typeof setInterval>) => {
-        clearInterval(id)
-        intervalIds.delete(id)
-      },
-    }
 
-    // Evaluate the backend code
-    // The code should be: module.exports = function setup(ctx) { ... }
-    const moduleObj = { exports: {} as any }
-    const wrappedCode = `(function(module, exports, ctx) { ${app.backend_code} \n})`
-    const fn = new Function(`return ${wrappedCode}`)()
-    fn(moduleObj, moduleObj.exports, ctx)
+        case 'ipc:send': {
+          // Backend → Frontend message relay
+          for (const win of BrowserWindow.getAllWindows()) {
+            win.webContents.send('miniapp:ipc-message', {
+              appId,
+              channel: msg.channel,
+              data: msg.data,
+            })
+          }
+          break
+        }
 
-    // If module.exports is a function, call it as setup(ctx)
-    let cleanup: (() => void | Promise<void>) | undefined
-    if (typeof moduleObj.exports === 'function') {
-      const result = moduleObj.exports(ctx)
-      if (typeof result === 'function') {
-        cleanup = result
+        case 'storage:get': {
+          try {
+            const result = storage.get(msg.key)
+            child.send({ type: 'response', requestId: msg.requestId, result })
+          } catch (e: any) {
+            child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+          }
+          break
+        }
+
+        case 'storage:set': {
+          try {
+            storage.set(msg.key, msg.value)
+            child.send({ type: 'response', requestId: msg.requestId, result: true })
+          } catch (e: any) {
+            child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+          }
+          break
+        }
+
+        case 'storage:delete': {
+          try {
+            storage.delete(msg.key)
+            child.send({ type: 'response', requestId: msg.requestId, result: true })
+          } catch (e: any) {
+            child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+          }
+          break
+        }
+
+        case 'storage:getAll': {
+          try {
+            const result = storage.getAll()
+            child.send({ type: 'response', requestId: msg.requestId, result })
+          } catch (e: any) {
+            child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+          }
+          break
+        }
+
+        case 'db:run': {
+          try {
+            const safeSql = prefixTables(msg.sql, tablePrefix)
+            const result = sqlite.prepare(safeSql).run(...(msg.params || []))
+            child.send({ type: 'response', requestId: msg.requestId, result })
+          } catch (e: any) {
+            child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+          }
+          break
+        }
+
+        case 'db:get': {
+          try {
+            const safeSql = prefixTables(msg.sql, tablePrefix)
+            const result = sqlite.prepare(safeSql).get(...(msg.params || []))
+            child.send({ type: 'response', requestId: msg.requestId, result: result ?? null })
+          } catch (e: any) {
+            child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+          }
+          break
+        }
+
+        case 'db:all': {
+          try {
+            const safeSql = prefixTables(msg.sql, tablePrefix)
+            const result = sqlite.prepare(safeSql).all(...(msg.params || []))
+            child.send({ type: 'response', requestId: msg.requestId, result })
+          } catch (e: any) {
+            child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+          }
+          break
+        }
+
+        case 'electron:shell': {
+          try {
+            const method = msg.method as keyof typeof shell
+            const fn = shell[method] as (...args: any[]) => any
+            const result = fn(...(msg.args || []))
+            // Handle promises (e.g., shell.openExternal returns Promise)
+            if (result && typeof result.then === 'function') {
+              result
+                .then((r: any) => {
+                  child.send({ type: 'response', requestId: msg.requestId, result: r })
+                })
+                .catch((e: any) => {
+                  child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+                })
+            } else {
+              child.send({ type: 'response', requestId: msg.requestId, result })
+            }
+          } catch (e: any) {
+            child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+          }
+          break
+        }
+
+        case 'electron:dialog': {
+          try {
+            const method = msg.method as keyof typeof dialog
+            const fn = dialog[method] as (...args: any[]) => any
+            const result = fn(...(msg.args || []))
+            if (result && typeof result.then === 'function') {
+              result
+                .then((r: any) => {
+                  child.send({ type: 'response', requestId: msg.requestId, result: r })
+                })
+                .catch((e: any) => {
+                  child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+                })
+            } else {
+              child.send({ type: 'response', requestId: msg.requestId, result })
+            }
+          } catch (e: any) {
+            child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+          }
+          break
+        }
+
+        case 'electron:clipboard': {
+          try {
+            const method = msg.method as keyof typeof clipboard
+            const fn = clipboard[method] as (...args: any[]) => any
+            const result = fn(...(msg.args || []))
+            child.send({ type: 'response', requestId: msg.requestId, result })
+          } catch (e: any) {
+            child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+          }
+          break
+        }
+
+        case 'electron:notification': {
+          try {
+            const notif = new Notification({
+              title: msg.opts?.title || '',
+              body: msg.opts?.body || '',
+              silent: msg.opts?.silent ?? false,
+            })
+            notif.show()
+            child.send({ type: 'response', requestId: msg.requestId, result: true })
+          } catch (e: any) {
+            child.send({ type: 'response', requestId: msg.requestId, error: e.message })
+          }
+          break
+        }
+
+        case 'ready': {
+          console.log(`[miniapp] ✅ Backend loaded (child process): ${app.name} [pid:${child.pid}]`)
+          break
+        }
+
+        case 'error': {
+          console.error(`[miniapp] ❌ Backend error in "${app.name}":`, msg.message)
+          if (msg.stack) console.error(msg.stack)
+          break
+        }
       }
-    }
+    })
 
-    console.log(`[miniapp] ✅ Backend loaded: ${app.name}`)
-    return { appId, cleanup, timers: timerIds, intervals: intervalIds }
+    // Handle child process exit
+    child.on('exit', (code, signal) => {
+      console.log(
+        `[miniapp] Child process exited for "${app.name}" (code:${code}, signal:${signal})`,
+      )
+      const instance = loadedApps.get(appId)
+      if (instance) {
+        instance.process = undefined
+      }
+
+      // Auto-disable on crash (non-zero exit, not from shutdown)
+      if (code !== 0 && code !== null) {
+        try {
+          const sq = getSqlite()
+          sq.prepare(
+            "UPDATE mini_apps SET enabled = 0, updated_at = datetime('now') WHERE id = ?",
+          ).run(appId)
+          console.warn(
+            `[miniapp] ⚠️ Auto-disabled "${app.name}" due to backend crash (exit code: ${code})`,
+          )
+        } catch (_disableErr) {
+          // Ignore — best effort
+        }
+      }
+    })
+
+    child.on('error', (err) => {
+      console.error(`[miniapp] Child process error for "${app.name}":`, err)
+    })
+
+    return { appId, process: child, timers: timerIds, intervals: intervalIds }
   } catch (e) {
     console.error(`[miniapp] ❌ Backend load failed for "${app.name}":`, e)
     // Auto-disable the mini app to prevent repeated crashes
     try {
-      const sqlite = getSqlite()
-      sqlite
-        .prepare("UPDATE mini_apps SET enabled = 0, updated_at = datetime('now') WHERE id = ?")
-        .run(appId)
+      const sq = getSqlite()
+      sq.prepare("UPDATE mini_apps SET enabled = 0, updated_at = datetime('now') WHERE id = ?").run(
+        appId,
+      )
       console.warn(`[miniapp] ⚠️ Auto-disabled "${app.name}" due to backend error`)
     } catch (_disableErr) {
       // Ignore — best effort
     }
-    // Clean up any timers that were created before the error
-    for (const t of timerIds) clearTimeout(t)
-    for (const i of intervalIds) clearInterval(i)
     return { appId, timers: new Set(), intervals: new Set() }
   }
 }
 
 async function unloadBackendCode(appId: string): Promise<void> {
   const instance = loadedApps.get(appId)
-  if (instance) {
+  if (!instance) return
+
+  // If child process is running, send shutdown and wait
+  if (instance.process?.connected) {
+    try {
+      instance.process.send({ type: 'shutdown' })
+
+      // Wait up to 5 seconds for graceful shutdown
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          // Force kill if still alive
+          if (instance.process && !instance.process.killed) {
+            console.warn(`[miniapp] Force killing child process for ${appId}`)
+            instance.process.kill('SIGKILL')
+          }
+          resolve()
+        }, 5000)
+
+        instance.process!.once('exit', () => {
+          clearTimeout(timeout)
+          resolve()
+        })
+      })
+    } catch (e) {
+      console.error(`[miniapp] Error shutting down child process for ${appId}:`, e)
+      // Force kill as fallback
+      if (instance.process && !instance.process.killed) {
+        instance.process.kill('SIGKILL')
+      }
+    }
+  } else {
+    // Fallback: call cleanup function (for legacy inline backends)
     try {
       await instance.cleanup?.()
     } catch (e) {
@@ -401,28 +690,29 @@ async function unloadBackendCode(appId: string): Promise<void> {
     for (const i of instance.intervals) clearInterval(i)
     instance.timers.clear()
     instance.intervals.clear()
-    // Clean up IPC bus
-    getAppIpcBus(appId).cleanup()
-    loadedApps.delete(appId)
-    console.log(`[miniapp] Unloaded backend: ${appId}`)
   }
+
+  // Clean up IPC bus
+  getAppIpcBus(appId).cleanup()
+  loadedApps.delete(appId)
+  console.log(`[miniapp] Unloaded backend: ${appId}`)
 }
 
 // ─── DB Operations ───────────────────────────────────────────────────────────
 
-function listMiniApps(): MiniAppRecord[] {
+export function listMiniApps(): MiniAppRecord[] {
   const sqlite = getSqlite()
   return sqlite
     .prepare('SELECT * FROM mini_apps ORDER BY display_order ASC, created_at ASC')
     .all() as MiniAppRecord[]
 }
 
-function getMiniApp(id: string): MiniAppRecord | null {
+export function getMiniApp(id: string): MiniAppRecord | null {
   const sqlite = getSqlite()
   return (sqlite.prepare('SELECT * FROM mini_apps WHERE id = ?').get(id) as MiniAppRecord) || null
 }
 
-function createMiniApp(data: {
+export function createMiniApp(data: {
   name: string
   description?: string
   icon?: string
@@ -445,10 +735,11 @@ function createMiniApp(data: {
 
   const enabled = data.enabled !== undefined ? (data.enabled ? 1 : 0) : 0
 
+  // v2: DB stores only metadata, no code columns
   sqlite
     .prepare(
-      `INSERT INTO mini_apps (id, name, description, icon, category, version, backend_code, frontend_code, panel_code, enabled, display_order, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO mini_apps (id, name, description, icon, category, version, enabled, display_order, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -457,16 +748,23 @@ function createMiniApp(data: {
       data.icon || 'Box',
       data.category || 'Custom',
       data.version || '1.0.0',
-      data.backendCode || '',
-      data.frontendCode || '',
-      data.panelCode ?? null,
       enabled,
       order,
       now,
       now,
     )
 
+  // v2: Write code to filesystem
+  writeAppCode(id, {
+    backendCode: data.backendCode,
+    frontendCode: data.frontendCode,
+    panelCode: data.panelCode,
+  })
+
   const app = getMiniApp(id)!
+
+  // Write manifest
+  writeAppManifest(app)
 
   // Load backend if enabled
   if (app.enabled) {
@@ -477,7 +775,7 @@ function createMiniApp(data: {
   return app
 }
 
-async function updateMiniApp(
+export async function updateMiniApp(
   id: string,
   data: {
     name?: string
@@ -496,6 +794,7 @@ async function updateMiniApp(
   const existing = getMiniApp(id)
   if (!existing) return null
 
+  // v2: Only metadata goes to DB, code goes to filesystem
   const fields: string[] = []
   const values: any[] = []
 
@@ -519,18 +818,6 @@ async function updateMiniApp(
     fields.push('version = ?')
     values.push(data.version)
   }
-  if (data.backendCode !== undefined) {
-    fields.push('backend_code = ?')
-    values.push(data.backendCode)
-  }
-  if (data.frontendCode !== undefined) {
-    fields.push('frontend_code = ?')
-    values.push(data.frontendCode)
-  }
-  if (data.panelCode !== undefined) {
-    fields.push('panel_code = ?')
-    values.push(data.panelCode)
-  }
   if (data.enabled !== undefined) {
     fields.push('enabled = ?')
     values.push(data.enabled ? 1 : 0)
@@ -540,14 +827,42 @@ async function updateMiniApp(
     values.push(data.displayOrder)
   }
 
-  if (fields.length === 0) return existing
+  // v2: Write code to filesystem (not DB)
+  const codeChanged =
+    data.backendCode !== undefined ||
+    data.frontendCode !== undefined ||
+    data.panelCode !== undefined
+  if (codeChanged) {
+    writeAppCode(id, {
+      backendCode: data.backendCode,
+      frontendCode: data.frontendCode,
+      panelCode: data.panelCode,
+    })
+  }
 
-  fields.push("updated_at = datetime('now')")
-  values.push(id)
-
-  sqlite.prepare(`UPDATE mini_apps SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+  if (fields.length > 0) {
+    fields.push("updated_at = datetime('now')")
+    values.push(id)
+    sqlite.prepare(`UPDATE mini_apps SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+  } else if (codeChanged) {
+    // Still update timestamp if code changed
+    sqlite.prepare("UPDATE mini_apps SET updated_at = datetime('now') WHERE id = ?").run(id)
+  } else {
+    return existing
+  }
 
   const updated = getMiniApp(id)!
+
+  // Update manifest if metadata changed
+  if (
+    data.name !== undefined ||
+    data.description !== undefined ||
+    data.icon !== undefined ||
+    data.category !== undefined ||
+    data.version !== undefined
+  ) {
+    writeAppManifest(updated)
+  }
 
   // Reload backend if code changed or enabled state changed
   const backendChanged = data.backendCode !== undefined
@@ -564,16 +879,19 @@ async function updateMiniApp(
   return updated
 }
 
-async function deleteMiniApp(id: string): Promise<boolean> {
+export async function deleteMiniApp(id: string): Promise<boolean> {
   const sqlite = getSqlite()
   await unloadBackendCode(id)
+
+  // v2: Delete app directory from filesystem
+  deleteAppDirectory(id)
 
   // Storage will cascade delete due to FK constraint
   const result = sqlite.prepare('DELETE FROM mini_apps WHERE id = ?').run(id)
   return result.changes > 0
 }
 
-async function toggleMiniApp(
+export async function toggleMiniApp(
   id: string,
 ): Promise<{ app: MiniAppRecord | null; missingConfigs?: string[] }> {
   const app = getMiniApp(id)
@@ -689,15 +1007,16 @@ function exportToZipBuffer(id: string): Buffer | null {
   const manifest = JSON.stringify(manifestObj, null, 2)
   zip.addFile('manifest.json', Buffer.from(manifest, 'utf8'))
 
-  // Code files (only add if non-empty)
-  if (app.frontend_code) {
-    zip.addFile('frontend.js', Buffer.from(app.frontend_code, 'utf8'))
+  // v2: Read code from filesystem
+  const code = readAppCode(id)
+  if (code.frontendCode) {
+    zip.addFile('frontend.js', Buffer.from(code.frontendCode, 'utf8'))
   }
-  if (app.backend_code) {
-    zip.addFile('backend.js', Buffer.from(app.backend_code, 'utf8'))
+  if (code.backendCode) {
+    zip.addFile('backend.js', Buffer.from(code.backendCode, 'utf8'))
   }
-  if (app.panel_code) {
-    zip.addFile('panel.js', Buffer.from(app.panel_code, 'utf8'))
+  if (code.panelCode) {
+    zip.addFile('panel.js', Buffer.from(code.panelCode, 'utf8'))
   }
 
   return zip.toBuffer()
@@ -1012,27 +1331,33 @@ export async function unloadAllMiniApps(): Promise<void> {
 
 export function setupMiniAppIPC(): void {
   ipcMain.handle('miniapp:list', () => {
-    return listMiniApps().map((app) => ({
-      id: app.id,
-      name: app.name,
-      description: app.description,
-      icon: app.icon,
-      category: app.category,
-      version: app.version,
-      enabled: !!app.enabled,
-      shortcut: app.shortcut,
-      displayOrder: app.display_order,
-      hasBackend: !!app.backend_code,
-      hasFrontend: !!app.frontend_code,
-      hasPanel: !!app.panel_code,
-      createdAt: app.created_at,
-      updatedAt: app.updated_at,
-    }))
+    return listMiniApps().map((app) => {
+      // v2: Check filesystem for code presence
+      const code = readAppCode(app.id)
+      return {
+        id: app.id,
+        name: app.name,
+        description: app.description,
+        icon: app.icon,
+        category: app.category,
+        version: app.version,
+        enabled: !!app.enabled,
+        shortcut: app.shortcut,
+        displayOrder: app.display_order,
+        hasBackend: !!code.backendCode.trim(),
+        hasFrontend: !!code.frontendCode.trim(),
+        hasPanel: !!code.panelCode,
+        createdAt: app.created_at,
+        updatedAt: app.updated_at,
+      }
+    })
   })
 
   ipcMain.handle('miniapp:get', (_event, id: string) => {
     const app = getMiniApp(id)
     if (!app) return null
+    // v2: Read code from filesystem
+    const code = readAppCode(id)
     return {
       id: app.id,
       name: app.name,
@@ -1040,14 +1365,24 @@ export function setupMiniAppIPC(): void {
       icon: app.icon,
       category: app.category,
       version: app.version,
-      backendCode: app.backend_code,
-      frontendCode: app.frontend_code,
-      panelCode: app.panel_code,
+      backendCode: code.backendCode,
+      frontendCode: code.frontendCode,
+      panelCode: code.panelCode,
       enabled: !!app.enabled,
       shortcut: app.shortcut,
       displayOrder: app.display_order,
       createdAt: app.created_at,
       updatedAt: app.updated_at,
+    }
+  })
+
+  // v2: Read code from filesystem (used by renderer)
+  ipcMain.handle('miniapp:read-code', (_event, id: string) => {
+    try {
+      return readAppCode(id)
+    } catch (e: any) {
+      console.error(`[miniapp] Read code error for ${id}:`, e)
+      return { backendCode: '', frontendCode: '', panelCode: null }
     }
   })
 
@@ -1101,11 +1436,18 @@ export function setupMiniAppIPC(): void {
     return { success: true, data: buffer }
   })
 
-  // Frontend → Backend IPC message relay
+  // Frontend → Backend IPC message relay (v2: relay to child process)
   ipcMain.handle('miniapp:send-ipc', (_event, appId: string, channel: string, data: any) => {
     try {
-      const bus = getAppIpcBus(appId)
-      bus.emit(channel, data)
+      const instance = loadedApps.get(appId)
+      if (instance?.process?.connected) {
+        // v2: Send to child process via IPC
+        instance.process.send({ type: 'ipc:message', channel, data })
+      } else {
+        // Fallback: emit on local IPC bus (for apps without child process)
+        const bus = getAppIpcBus(appId)
+        bus.emit(channel, data)
+      }
       return { success: true }
     } catch (e: any) {
       console.error(`[miniapp] IPC relay error for ${appId}/${channel}:`, e)

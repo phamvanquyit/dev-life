@@ -3,9 +3,9 @@ import React from 'react'
 import { transform } from 'sucrase'
 import * as MiniAppUIComponents from '../components/ui/MiniAppUI'
 
-// ─── createElement helper (h) for writing mini app UI concisely ──────────────
+// ─── JSX pragma (used internally by Sucrase transpiler, NOT exposed to mini apps) ──
 
-export function h(type: any, props?: any, ...children: any[]) {
+export function __jsx(type: any, props?: any, ...children: any[]) {
   return React.createElement(type, props, ...children)
 }
 
@@ -45,7 +45,6 @@ export function buildFrontendContext(appId: string) {
   return {
     appId,
     React,
-    h, // hyperscript-style createElement helper
     useState: React.useState,
     useEffect: React.useEffect,
     useRef: React.useRef,
@@ -61,6 +60,29 @@ export function buildFrontendContext(appId: string) {
   }
 }
 
+// ─── Source Code Validation ──────────────────────────────────────────────────
+
+const BANNED_PATTERNS = [
+  { pattern: /\bctx\.h\s*\(/, label: 'ctx.h()' },
+  { pattern: /\bReact\.createElement\s*\(/, label: 'React.createElement()' },
+  // Detect standalone h() calls — but only at word boundary (not in variable names like 'width')
+  // Match: h(, h (, but not: Math(, path(, width(
+  { pattern: /(?:^|[^a-zA-Z0-9_$.])h\s*\(/, label: 'h()' },
+]
+
+function validateSourceCode(code: string): void {
+  for (const { pattern, label } of BANNED_PATTERNS) {
+    if (pattern.test(code)) {
+      throw new Error(
+        `❌ Manual createElement detected: ${label}\n` +
+          'Mini apps MUST use JSX syntax (auto-transpiled by Sucrase).\n' +
+          'Example: return (<div className="p-6">Hello</div>)\n' +
+          'Do NOT use ctx.h(), h(), or React.createElement().',
+      )
+    }
+  }
+}
+
 // ─── JSX Transpiler ──────────────────────────────────────────────────────────
 
 export function transpileCode(code: string): string {
@@ -69,14 +91,15 @@ export function transpileCode(code: string): string {
     try {
       const result = transform(code, {
         transforms: ['jsx'],
-        jsxPragma: 'h',
+        jsxPragma: '__jsx',
         jsxFragmentPragma: 'React.Fragment',
         production: true,
       })
       return result.code
-    } catch (e) {
-      console.error('[MiniApp] JSX transpile failed, using raw code:', e)
-      return code
+    } catch (e: any) {
+      const msg = e?.message || String(e)
+      console.error('[MiniApp] JSX transpile failed:', msg)
+      throw new Error(`JSX syntax error: ${msg}`)
     }
   }
   return code
@@ -91,11 +114,14 @@ export function evaluateComponent(
   if (!code || code.trim() === '') return null
 
   try {
+    // Validate: reject ctx.h(), h(), React.createElement() in source
+    validateSourceCode(code)
+
     const transpiledCode = transpileCode(code)
     const moduleObj = { exports: {} as any }
-    const wrappedCode = `(function(module, exports, ctx, h, React) { ${transpiledCode} \n})`
+    const wrappedCode = `(function(module, exports, ctx, __jsx, React) { ${transpiledCode} \n})`
     const fn = new Function(`return ${wrappedCode}`)()
-    fn(moduleObj, moduleObj.exports, ctx, h, React)
+    fn(moduleObj, moduleObj.exports, ctx, __jsx, React)
 
     const component = moduleObj.exports
     if (typeof component === 'function') {
@@ -104,6 +130,6 @@ export function evaluateComponent(
     return null
   } catch (e) {
     console.error('[MiniApp] Failed to evaluate code:', e)
-    return null
+    throw e
   }
 }

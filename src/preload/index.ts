@@ -80,6 +80,12 @@ const api = {
     return () => ipcRenderer.removeListener('miniapp:log', handler)
   },
 
+  // v2: Read code from filesystem
+  readMiniAppCode: (
+    id: string,
+  ): Promise<{ backendCode: string; frontendCode: string; panelCode: string | null }> =>
+    ipcRenderer.invoke('miniapp:read-code', id),
+
   // LLM Providers
   listLlmProviders: (): Promise<{
     success: boolean
@@ -99,54 +105,6 @@ const api = {
     providerId: string,
   ): Promise<{ success: boolean; models?: any[]; error?: string }> =>
     ipcRenderer.invoke('llm:get-models', providerId),
-
-  // AI Agent
-  aiAgentRun: (data: {
-    providerId: string
-    modelId: string
-    messages: Array<{ role: string; content: string }>
-    context: {
-      appName: string
-      appDescription: string
-      activeTab: string
-      currentCode: string
-      allCode: { frontend: string; backend: string; panel: string }
-    }
-  }): Promise<{ success: boolean; error?: string; aborted?: boolean }> =>
-    ipcRenderer.invoke('ai-agent:run', data),
-  aiAgentStop: (): Promise<{ success: boolean }> => ipcRenderer.invoke('ai-agent:stop'),
-  onAiAgentToken: (callback: (data: { content: string; fullContent: string }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
-    ipcRenderer.on('ai-agent:token', handler)
-    return () => ipcRenderer.removeListener('ai-agent:token', handler)
-  },
-  onAiAgentToolStart: (callback: (data: { name: string; input: any }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
-    ipcRenderer.on('ai-agent:tool-start', handler)
-    return () => ipcRenderer.removeListener('ai-agent:tool-start', handler)
-  },
-  onAiAgentToolEnd: (callback: (data: { name: string; output: any }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
-    ipcRenderer.on('ai-agent:tool-end', handler)
-    return () => ipcRenderer.removeListener('ai-agent:tool-end', handler)
-  },
-  onAiAgentDone: (callback: (data: { fullContent: string; aborted?: boolean }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
-    ipcRenderer.on('ai-agent:done', handler)
-    return () => ipcRenderer.removeListener('ai-agent:done', handler)
-  },
-  onAiAgentError: (callback: (data: { error: string }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
-    ipcRenderer.on('ai-agent:error', handler)
-    return () => ipcRenderer.removeListener('ai-agent:error', handler)
-  },
-  onAiAgentCodeProposal: (
-    callback: (data: { code: string; target: string; description: string }) => void,
-  ) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
-    ipcRenderer.on('ai-agent:code-proposal', handler)
-    return () => ipcRenderer.removeListener('ai-agent:code-proposal', handler)
-  },
 
   // Config persistence
   getConfig: (key: string): Promise<string | null> => ipcRenderer.invoke('config:get', key),
