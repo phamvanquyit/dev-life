@@ -99,7 +99,7 @@ export function createTray(mainWindow?: BrowserWindow): void {
   icon.setTemplateImage(true)
 
   tray = new Tray(icon)
-  tray.setToolTip('Dev Life')
+  tray.setToolTip(is.dev ? 'Dev Life [DEV]' : 'Dev Life')
   tray.setIgnoreDoubleClickEvents(true)
 
   // Create the panel window

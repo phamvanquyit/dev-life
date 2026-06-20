@@ -15,6 +15,7 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { is } from '@electron-toolkit/utils'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import {
@@ -25,7 +26,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { handleTool, TOOLS } from './mcp/index'
 
-const MCP_PORT = 24816
+const MCP_PORT = is.dev ? 24817 : 24816
 
 // ─── MCP Server Setup ────────────────────────────────────────────────────────
 

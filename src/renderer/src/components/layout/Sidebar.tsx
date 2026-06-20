@@ -55,7 +55,7 @@ export default function Sidebar({
           </div>
           <div className="flex flex-col gap-px min-w-0">
             <span className="text-[13px] font-semibold text-[var(--color-ink)] leading-[1.2] tracking-[-0.2px]">
-              Dev Life
+              {import.meta.env.DEV ? 'Dev Life - Development' : 'Dev Life'}
             </span>
             <span className="text-[10px] text-[var(--color-mute)] leading-[1.2] tracking-[0.3px]">
               Developer Toolkit

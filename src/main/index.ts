@@ -31,6 +31,18 @@ function createWindow(): BrowserWindow {
     mainWindow.show()
   })
 
+  // In dev mode, override the window title to distinguish from production
+  if (is.dev) {
+    const devTitle = 'Dev Life - Development'
+    mainWindow.on('page-title-updated', (e) => {
+      e.preventDefault()
+      mainWindow.setTitle(devTitle)
+    })
+    mainWindow.webContents.on('did-finish-load', () => {
+      mainWindow.webContents.executeJavaScript(`document.title = '${devTitle}'`)
+    })
+  }
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -45,7 +57,7 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
-app.setName('Dev Life')
+app.setName(is.dev ? 'Dev Life Dev' : 'Dev Life')
 
 // Prevent multiple instances — if another instance is already running, quit this one
 const gotTheLock = app.requestSingleInstanceLock()
@@ -57,7 +69,7 @@ if (!gotTheLock) {
 let forceQuit = false
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.zobite.dev-life')
+  electronApp.setAppUserModelId(is.dev ? 'com.zobite.dev-life-dev' : 'com.zobite.dev-life')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
