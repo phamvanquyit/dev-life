@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from 'react'
 import { Badge } from '../ui/Badge'
 import { toast } from '../ui/Toast'
+import LlmProviders from './LlmProviders'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -413,6 +414,12 @@ export default function Settings() {
 
       {/* MCP Section */}
       <McpSection />
+
+      {/* Dashed section divider */}
+      <div className="w-full h-px border-t border-dashed border-[rgba(79,93,117,0.4)] my-8" />
+
+      {/* LLM Providers Section */}
+      <LlmProviders />
 
       {/* Dashed section divider */}
       <div className="w-full h-px border-t border-dashed border-[rgba(79,93,117,0.4)] my-8" />

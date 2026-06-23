@@ -86,6 +86,26 @@ const api = {
   ): Promise<{ backendCode: string; frontendCode: string; panelCode: string | null }> =>
     ipcRenderer.invoke('miniapp:read-code', id),
 
+  getMiniAppGuide: (): Promise<string> => ipcRenderer.invoke('miniapp:get-guide'),
+
+  getMiniAppAiAssistant: (
+    appId: string,
+  ): Promise<{
+    providerId: string
+    modelId: string
+    chatHistory: any[]
+  }> => ipcRenderer.invoke('miniapp:get-ai-assistant', appId),
+
+  saveMiniAppAiAssistant: (
+    appId: string,
+    data: {
+      providerId: string
+      modelId: string
+      chatHistory: any[]
+    },
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('miniapp:save-ai-assistant', appId, data),
+
   // LLM Providers
   listLlmProviders: (): Promise<{
     success: boolean
@@ -105,6 +125,43 @@ const api = {
     providerId: string,
   ): Promise<{ success: boolean; models?: any[]; error?: string }> =>
     ipcRenderer.invoke('llm:get-models', providerId),
+  callLlmCompletion: (data: {
+    providerId: string
+    modelId: string
+    systemPrompt: string
+    messages: { role: 'user' | 'assistant'; content: string }[]
+    temperature?: number
+  }): Promise<{ success: boolean; text?: string; error?: string }> =>
+    ipcRenderer.invoke('llm:call-completion', data),
+  formatCode: (code: string): Promise<{ success: boolean; formatted?: string; error?: string }> =>
+    ipcRenderer.invoke('llm:format-code', code),
+
+  // LLM Streaming
+  callLlmCompletionStream: (data: {
+    providerId: string
+    modelId: string
+    systemPrompt: string
+    messages: { role: 'user' | 'assistant'; content: string }[]
+    temperature?: number
+    tools?: any[]
+  }): Promise<{ success: boolean; requestId?: string; error?: string }> =>
+    ipcRenderer.invoke('llm:call-completion-stream', data),
+  cancelLlmStream: (requestId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('llm:cancel-stream', requestId),
+  onLlmStreamChunk: (
+    callback: (chunk: {
+      requestId: string
+      type: 'token' | 'tool_call' | 'done' | 'error'
+      token?: string
+      toolCall?: { id: string; name: string; arguments: string }
+      fullText?: string
+      error?: string
+    }) => void,
+  ) => {
+    const handler = (_event: Electron.IpcRendererEvent, chunk: any) => callback(chunk)
+    ipcRenderer.on('llm:stream-chunk', handler)
+    return () => ipcRenderer.removeListener('llm:stream-chunk', handler)
+  },
 
   // Config persistence
   getConfig: (key: string): Promise<string | null> => ipcRenderer.invoke('config:get', key),

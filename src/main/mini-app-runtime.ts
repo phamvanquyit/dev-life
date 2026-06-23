@@ -16,6 +16,7 @@ import {
   systemPreferences,
 } from 'electron'
 import { getSqlite } from './db'
+import { MINIAPP_GUIDE } from './mcp/guide'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1568,6 +1569,37 @@ export function setupMiniAppIPC(): void {
       return { success: true }
     } catch (e: any) {
       console.error(`[miniapp] Config set error for ${appId}:`, e)
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('miniapp:get-guide', () => {
+    return MINIAPP_GUIDE
+  })
+
+  ipcMain.handle('miniapp:get-ai-assistant', (_event, appId: string) => {
+    try {
+      const filePath = path.join(getAppsDir(), appId, 'ai-assistant.json')
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, 'utf8')
+        return JSON.parse(raw)
+      }
+      return { providerId: '', modelId: '', chatHistory: [] }
+    } catch (e: any) {
+      console.error(`[miniapp] Error reading AI assistant context for ${appId}:`, e)
+      return { providerId: '', modelId: '', chatHistory: [] }
+    }
+  })
+
+  ipcMain.handle('miniapp:save-ai-assistant', (_event, appId: string, data: any) => {
+    try {
+      const appDir = path.join(getAppsDir(), appId)
+      fs.mkdirSync(appDir, { recursive: true })
+      const filePath = path.join(appDir, 'ai-assistant.json')
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8')
+      return { success: true }
+    } catch (e: any) {
+      console.error(`[miniapp] Error saving AI assistant context for ${appId}:`, e)
       return { success: false, error: e.message }
     }
   })
