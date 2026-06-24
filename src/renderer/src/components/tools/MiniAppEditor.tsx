@@ -146,8 +146,42 @@ export default function MiniAppEditor() {
   const [configSchema, setConfigSchema] = useState<Record<string, any> | null>(null)
   const [configValues, setConfigValues] = useState<Record<string, any>>({})
 
-  // AI Assistant Sidebar state & code proposal handlers
+  // AI Agent sidebar
   const [showAIAgent, setShowAIAgent] = useState(true)
+  const [miniAppWorkspacePath, setMiniAppWorkspacePath] = useState('')
+  const [agentSidebarWidth, setAgentSidebarWidth] = useState(320)
+  const isResizingRef = useRef(false)
+  const resizeStartXRef = useRef(0)
+  const resizeStartWidthRef = useRef(320)
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isResizingRef.current = true
+    resizeStartXRef.current = e.clientX
+    resizeStartWidthRef.current = agentSidebarWidth
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isResizingRef.current) return
+      const delta = resizeStartXRef.current - ev.clientX
+      const next = Math.min(600, Math.max(240, resizeStartWidthRef.current + delta))
+      setAgentSidebarWidth(next)
+    }
+
+    const onMouseUp = () => {
+      isResizingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [agentSidebarWidth])
+
+  // AI Assistant Sidebar state & code proposal handlers (kept for legacy diff-accept UI)
   const [proposedChanges, setProposedChanges] = useState<{
     thought?: string
     name: string
@@ -288,34 +322,6 @@ export default function MiniAppEditor() {
     diffEditorRef.current = null
   }, [activeTab])
 
-  const handleCodeProposed = (proposed: typeof proposedChanges) => {
-    setProposedChanges(proposed)
-    if (proposed) {
-      const pending: { frontend?: boolean; backend?: boolean; panel?: boolean } = {}
-      if (proposed.frontendCode && proposed.frontendCode.trim() !== formFrontendCode.trim()) {
-        pending.frontend = true
-      }
-      if (proposed.backendCode && proposed.backendCode.trim() !== formBackendCode.trim()) {
-        pending.backend = true
-      }
-      if (proposed.panelCode && proposed.panelCode.trim() !== (formPanelCode || '').trim()) {
-        pending.panel = true
-      }
-      // Nếu AI đề xuất thay đổi metadata nhưng code giống nhau, ta vẫn cho phép họ xem duyệt bằng cách cho pending là tab frontend
-      if (
-        Object.keys(pending).length === 0 &&
-        (proposed.name !== formName ||
-          proposed.description !== formDescription ||
-          proposed.icon !== formIcon)
-      ) {
-        pending.frontend = true
-      }
-      setPendingProposals(pending)
-    } else {
-      setPendingProposals(null)
-    }
-  }
-
   const handleAcceptTab = (tab: 'frontend' | 'backend' | 'panel') => {
     if (!proposedChanges || !pendingProposals) return
 
@@ -411,6 +417,45 @@ export default function MiniAppEditor() {
   useEffect(() => {
     loadApp()
   }, [loadApp])
+
+  // Load workspace path for AI agent (mini-app filesystem directory)
+  useEffect(() => {
+    if (!appId) return
+    window.api
+      ?.getMiniAppWorkspacePath(appId)
+      .then(setMiniAppWorkspacePath)
+      .catch(() => {})
+  }, [appId])
+
+  // Reload code from disk after AI agent writes files — show diff for accept/reject
+  const handleAgentFilesChanged = useCallback(async () => {
+    if (!appId) return
+    try {
+      const code = await window.api?.readMiniAppCode(appId)
+      if (!code) return
+
+      const pending: { frontend?: boolean; backend?: boolean; panel?: boolean } = {}
+      if ((code.frontendCode || '').trim() !== formFrontendCode.trim()) pending.frontend = true
+      if ((code.backendCode || '').trim() !== formBackendCode.trim()) pending.backend = true
+      if ((code.panelCode || '').trim() !== formPanelCode.trim()) pending.panel = true
+
+      if (Object.keys(pending).length === 0) return
+
+      setProposedChanges({
+        name: formName,
+        description: formDescription,
+        icon: formIcon,
+        frontendCode: code.frontendCode || '',
+        backendCode: code.backendCode || '',
+        panelCode: code.panelCode || '',
+      })
+      setPendingProposals(pending)
+      setActiveTab(Object.keys(pending)[0] as 'frontend' | 'backend' | 'panel')
+      toast.success('AI đã cập nhật code — hãy xem xét và chấp nhận hoặc từ chối thay đổi.')
+    } catch {
+      // ignore
+    }
+  }, [appId, formName, formDescription, formIcon, formFrontendCode, formBackendCode, formPanelCode])
 
   // ─── Log Listener ────────────────────────────────────────────────────────
 
@@ -969,18 +1014,27 @@ export default function MiniAppEditor() {
         </div>
 
         {showAIAgent && (
-          <AIAgentSidebar
-            appId={appId}
-            appName={formName}
-            appDescription={formDescription}
-            appIcon={formIcon}
-            appVersion={formVersion}
-            frontendCode={formFrontendCode}
-            backendCode={formBackendCode}
-            panelCode={formPanelCode}
-            onCodeProposed={handleCodeProposed}
-            onClose={() => setShowAIAgent(false)}
-          />
+          <>
+            {/* Drag handle */}
+            <div
+              onMouseDown={handleResizeMouseDown}
+              className="w-1 shrink-0 cursor-col-resize hover:bg-[var(--color-primary)] active:bg-[var(--color-primary)] transition-colors bg-transparent group relative"
+              title="Drag to resize"
+            />
+            <div style={{ width: agentSidebarWidth, minWidth: agentSidebarWidth }} className="shrink-0 flex flex-col h-full overflow-hidden">
+              <AIAgentSidebar
+                storageKey={appId}
+                initialWorkspacePath={miniAppWorkspacePath}
+                projectContext={
+                  formName
+                    ? `Mini-app: ${formName}\nDescription: ${formDescription}\nFiles: frontend/index.jsx (React UI), backend/index.js (Node.js backend), panel/index.jsx (optional settings panel)`
+                    : undefined
+                }
+                onFilesChanged={handleAgentFilesChanged}
+                onClose={() => setShowAIAgent(false)}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>

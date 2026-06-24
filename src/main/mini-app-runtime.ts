@@ -1577,6 +1577,11 @@ export function setupMiniAppIPC(): void {
     return MINIAPP_GUIDE
   })
 
+  // Return the filesystem workspace path for a mini-app (used by the AI coding agent)
+  ipcMain.handle('miniapp:workspace-path', (_event, appId: string) => {
+    return path.join(getAppsDir(), appId)
+  })
+
   ipcMain.handle('miniapp:get-ai-assistant', (_event, appId: string) => {
     try {
       const filePath = path.join(getAppsDir(), appId, 'ai-assistant.json')

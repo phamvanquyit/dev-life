@@ -83,26 +83,28 @@ function validateSourceCode(code: string): void {
   }
 }
 
-// ─── JSX Transpiler ──────────────────────────────────────────────────────────
+// ─── JSX + Imports Transpiler ────────────────────────────────────────────────
 
 export function transpileCode(code: string): string {
-  // Detect JSX syntax: look for <Component or <tag patterns
-  if (/<[A-Za-z]/.test(code)) {
-    try {
-      const result = transform(code, {
-        transforms: ['jsx'],
-        jsxPragma: '__jsx',
-        jsxFragmentPragma: 'React.Fragment',
-        production: true,
-      })
-      return result.code
-    } catch (e: any) {
-      const msg = e?.message || String(e)
-      console.error('[MiniApp] JSX transpile failed:', msg)
-      throw new Error(`JSX syntax error: ${msg}`)
-    }
+  // Always apply 'imports' transform so ES module import/export syntax is
+  // converted to require()/module.exports before wrapping in new Function().
+  // Add 'jsx' only when JSX elements are detected.
+  const transforms: ('jsx' | 'imports')[] = ['imports']
+  if (/<[A-Za-z]/.test(code)) transforms.push('jsx')
+
+  try {
+    const result = transform(code, {
+      transforms,
+      jsxPragma: '__jsx',
+      jsxFragmentPragma: 'React.Fragment',
+      production: true,
+    })
+    return result.code
+  } catch (e: any) {
+    const msg = e?.message || String(e)
+    console.error('[MiniApp] Transpile failed:', msg)
+    throw new Error(`Syntax error: ${msg}`)
   }
-  return code
 }
 
 // ─── Evaluate mini app code and return component ─────────────────────────────
@@ -118,12 +120,28 @@ export function evaluateComponent(
     validateSourceCode(code)
 
     const transpiledCode = transpileCode(code)
-    const moduleObj = { exports: {} as any }
-    const wrappedCode = `(function(module, exports, ctx, __jsx, React) { ${transpiledCode} \n})`
-    const fn = new Function(`return ${wrappedCode}`)()
-    fn(moduleObj, moduleObj.exports, ctx, __jsx, React)
 
-    const component = moduleObj.exports
+    // Mock require() so that import statements converted by sucrase resolve
+    // to the context values already available in the sandbox.
+    const mockRequire = (mod: string): any => {
+      if (mod === 'react') return ctx.React
+      if (mod === 'lucide-react') return ctx.icons
+      if (mod === 'react/jsx-runtime') return { jsx: __jsx, jsxs: __jsx, Fragment: React.Fragment }
+      throw new Error(
+        `Cannot import "${mod}" in a mini app. ` +
+          'Use ctx.React, ctx.icons, ctx.ui, etc. instead.',
+      )
+    }
+
+    const moduleObj = { exports: {} as any }
+    // Inject 'require' so sucrase-converted imports work inside new Function
+    const wrappedCode = `(function(module, exports, ctx, __jsx, React, require) {\n${transpiledCode}\n})`
+    const fn = new Function(`return ${wrappedCode}`)()
+    fn(moduleObj, moduleObj.exports, ctx, __jsx, React, mockRequire)
+
+    // Support both module.exports = Fn (CJS) and export default Fn (ESM via sucrase)
+    const exp = moduleObj.exports
+    const component = typeof exp === 'function' ? exp : (exp as any)?.default
     if (typeof component === 'function') {
       return component
     }

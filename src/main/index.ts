@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, ipcMain, nativeImage, shell } from 'electron'
+import { setupAiAgentIPC } from './agent/ipcHandler'
 import { setupLlmProvidersIPC } from './llm-providers'
 import { startMcpServer, stopMcpServer } from './mcp-server'
 import { createMenu } from './menu'
@@ -129,6 +130,7 @@ app.whenReady().then(() => {
 
   setupMiniAppIPC()
   setupLlmProvidersIPC()
+  setupAiAgentIPC()
 
   // Load all enabled mini apps
   loadAllMiniApps()
