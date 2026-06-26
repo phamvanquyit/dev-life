@@ -128,6 +128,41 @@ app.whenReady().then(() => {
   // IPC handlers
   ipcMain.handle('get-app-version', () => app.getVersion())
 
+  // Config persistence handlers
+  ipcMain.handle('config:get', async (_event, key: string) => {
+    try {
+      const { eq } = await import('drizzle-orm')
+      const { getDb } = await import('./db')
+      const { configurations } = await import('./db/schema')
+      const db = getDb()
+      const row = db.select().from(configurations).where(eq(configurations.key, key)).get()
+      return row?.value ?? null
+    } catch {
+      return null
+    }
+  })
+
+  ipcMain.handle('config:set', async (_event, key: string, value: string) => {
+    try {
+      const { eq } = await import('drizzle-orm')
+      const { getDb } = await import('./db')
+      const { configurations } = await import('./db/schema')
+      const db = getDb()
+      const existing = db.select().from(configurations).where(eq(configurations.key, key)).get()
+      if (existing) {
+        db.update(configurations)
+          .set({ value, updatedAt: new Date().toISOString() })
+          .where(eq(configurations.key, key))
+          .run()
+      } else {
+        db.insert(configurations).values({ key, value }).run()
+      }
+      return { success: true }
+    } catch {
+      return { success: false }
+    }
+  })
+
   setupMiniAppIPC()
   setupLlmProvidersIPC()
   setupAiAgentIPC()

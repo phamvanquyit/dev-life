@@ -31,6 +31,7 @@ export function setupAiAgentIPC() {
       const senderWebContentsId = event.sender.id
 
       // Run agent in background — don't block the IPC response
+
       ;(async () => {
         try {
           await runAgent({

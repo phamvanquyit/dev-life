@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Code,
   Folder,
   Loader2,
   Search,
@@ -13,7 +14,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,17 @@ export interface AIAgentSidebarProps {
   onClose: () => void
   /** localStorage key prefix for persisting selected provider/model (e.g. app id) */
   storageKey?: string
+  /** Named code files the user can attach line ranges from, e.g. { 'frontend/index.jsx': '...' } */
+  codeFiles?: Record<string, string>
+}
+
+// ── Code snippet attachment ───────────────────────────────────────────────────
+
+interface CodeSnippet {
+  id: string
+  file: string
+  startLine: number
+  endLine: number
 }
 
 // ── Chat message model ────────────────────────────────────────────────────────
@@ -90,9 +102,20 @@ function renderInline(text: string): React.ReactNode[] {
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > last) nodes.push(text.slice(last, match.index))
     if (match[0].startsWith('**')) {
-      nodes.push(<strong key={match.index} className="font-semibold text-(--color-ink-strong)">{match[2]}</strong>)
+      nodes.push(
+        <strong key={match.index} className="font-semibold text-(--color-ink-strong)">
+          {match[2]}
+        </strong>,
+      )
     } else {
-      nodes.push(<code key={match.index} className="px-1 py-0.5 rounded bg-(--color-canvas) text-(--color-primary) font-mono text-[11px]">{match[3]}</code>)
+      nodes.push(
+        <code
+          key={match.index}
+          className="px-1 py-0.5 rounded bg-(--color-canvas) text-(--color-primary) font-mono text-[11px]"
+        >
+          {match[3]}
+        </code>,
+      )
     }
     last = match.index + match[0].length
   }
@@ -106,7 +129,10 @@ function renderMarkdown(text: string): React.ReactNode {
     if (seg.startsWith('```')) {
       const body = seg.replace(/^```[^\n]*\n/, '').replace(/```$/, '')
       return (
-        <pre key={i} className="mt-2 mb-1 p-3 rounded-sm bg-(--color-canvas) border border-(--color-hairline) text-[11px] font-mono text-(--color-ink) overflow-x-auto whitespace-pre">
+        <pre
+          key={i}
+          className="mt-2 mb-1 p-3 rounded-sm bg-(--color-canvas) border border-(--color-hairline) text-[11px] font-mono text-(--color-ink) overflow-x-auto whitespace-pre"
+        >
           {body}
         </pre>
       )
@@ -336,60 +362,96 @@ function ModelSelector({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function AIAgentSidebar({
-  initialWorkspacePath = '',
-  projectContext,
-  onFilesChanged,
-  onClose,
-  storageKey,
-}: AIAgentSidebarProps) {
-  const lsKey = storageKey ? `ai-agent-model:${storageKey}` : null
+export interface AIAgentSidebarHandle {
+  addSnippet: (file: string, startLine: number, endLine: number) => void
+}
 
-  // ── Provider / model state ─────────────────────────────────────────────────
-  const [providers, setProviders] = useState<LlmProvider[]>([])
-  const [selectedProviderId, setSelectedProviderId] = useState('')
-  const [selectedModelId, setSelectedModelId] = useState('')
-  const [loadingProviders, setLoadingProviders] = useState(true)
+const AIAgentSidebar = forwardRef<AIAgentSidebarHandle, AIAgentSidebarProps>(
+  function AIAgentSidebar(
+    {
+      initialWorkspacePath = '',
+      projectContext,
+      onFilesChanged,
+      onClose,
+      storageKey,
+      codeFiles,
+    }: AIAgentSidebarProps,
+    ref,
+  ) {
+    const lsKey = storageKey ? `ai-agent-model:${storageKey}` : null
 
-  // ── Workspace ──────────────────────────────────────────────────────────────
-  const [workspacePath, setWorkspacePath] = useState(initialWorkspacePath)
+    // ── Provider / model state ─────────────────────────────────────────────────
+    const [providers, setProviders] = useState<LlmProvider[]>([])
+    const [selectedProviderId, setSelectedProviderId] = useState('')
+    const [selectedModelId, setSelectedModelId] = useState('')
+    const [loadingProviders, setLoadingProviders] = useState(true)
 
-  // ── Chat state ─────────────────────────────────────────────────────────────
-  const [messages, setMessages] = useState<ChatMsg[]>([])
-  const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null)
-  const [streamingText, setStreamingText] = useState('')
-  const [pendingSteps, setPendingSteps] = useState<ToolStep[]>([])
-  const [isRunning, setIsRunning] = useState(false)
-  const [input, setInput] = useState('')
+    // ── Workspace ──────────────────────────────────────────────────────────────
+    const [workspacePath, setWorkspacePath] = useState(initialWorkspacePath)
 
-  const requestIdRef = useRef<string | null>(null)
-  const startTimeRef = useRef<number>(0)
-  const cleanupRef = useRef<(() => void) | null>(null)
-  const pendingStepsRef = useRef<ToolStep[]>([])
-  const isRunningRef = useRef(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+    // ── Chat state ─────────────────────────────────────────────────────────────
+    const [messages, setMessages] = useState<ChatMsg[]>([])
+    const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null)
+    const [streamingText, setStreamingText] = useState('')
+    const [pendingSteps, setPendingSteps] = useState<ToolStep[]>([])
+    const [isRunning, setIsRunning] = useState(false)
+    const [input, setInput] = useState('')
 
-  // ── Load providers ─────────────────────────────────────────────────────────
+    // ── Code snippet attachments ───────────────────────────────────────────────
+    const [codeSnippets, setCodeSnippets] = useState<CodeSnippet[]>([])
+    const [showSnippetPicker, setShowSnippetPicker] = useState(false)
+    const [snippetFile, setSnippetFile] = useState('')
+    const [snippetStart, setSnippetStart] = useState('')
+    const [snippetEnd, setSnippetEnd] = useState('')
 
-  useEffect(() => {
-    setLoadingProviders(true)
-    window.api
-      .listLlmProviders()
-      .then((res: { success: boolean; providers?: any[]; error?: string }) => {
-        if (res.success && res.providers?.length) {
-          setProviders(res.providers)
+    useImperativeHandle(
+      ref,
+      () => ({
+        addSnippet: (file: string, startLine: number, endLine: number) => {
+          setCodeSnippets((prev) => [
+            ...prev,
+            { id: `snip-${Date.now()}`, file, startLine, endLine },
+          ])
+          setShowSnippetPicker(false)
+        },
+      }),
+      [],
+    )
 
-          const saved = lsKey ? (() => {
-            try { return JSON.parse(localStorage.getItem(lsKey) || 'null') } catch { return null }
-          })() : null
+    const requestIdRef = useRef<string | null>(null)
+    const startTimeRef = useRef<number>(0)
+    const cleanupRef = useRef<(() => void) | null>(null)
+    const pendingStepsRef = useRef<ToolStep[]>([])
+    const isRunningRef = useRef(false)
+    const bottomRef = useRef<HTMLDivElement>(null)
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-          const savedProvider = saved?.providerId
-            ? res.providers.find((p) => p.id === saved.providerId)
-            : null
-          const provider = savedProvider ?? res.providers[0]
-          const model = savedProvider?.models.find((m: any) => m.id === saved?.modelId)
-            ?? provider.models?.[0]
+    // ── Load providers ─────────────────────────────────────────────────────────
+
+    useEffect(() => {
+      setLoadingProviders(true)
+      window.api
+        .listLlmProviders()
+        .then((res: { success: boolean; providers?: any[]; error?: string }) => {
+          if (res.success && res.providers?.length) {
+            setProviders(res.providers)
+
+            const saved = lsKey
+              ? (() => {
+                  try {
+                    return JSON.parse(localStorage.getItem(lsKey) || 'null')
+                  } catch {
+                    return null
+                  }
+                })()
+              : null
+
+            const savedProvider = saved?.providerId
+              ? res.providers.find((p) => p.id === saved.providerId)
+              : null
+            const provider = savedProvider ?? res.providers[0]
+            const model =
+              savedProvider?.models.find((m: any) => m.id === saved?.modelId) ?? provider.models?.[0]
 
           setSelectedProviderId(provider.id)
           setSelectedModelId(model?.id || '')
@@ -416,7 +478,10 @@ export default function AIAgentSidebar({
   // Persist selected provider/model whenever they change
   useEffect(() => {
     if (!lsKey || !selectedProviderId || !selectedModelId) return
-    localStorage.setItem(lsKey, JSON.stringify({ providerId: selectedProviderId, modelId: selectedModelId }))
+    localStorage.setItem(
+      lsKey,
+      JSON.stringify({ providerId: selectedProviderId, modelId: selectedModelId }),
+    )
   }, [lsKey, selectedProviderId, selectedModelId])
 
   const handleProviderChange = useCallback(
@@ -435,15 +500,52 @@ export default function AIAgentSidebar({
     if (res.success && res.path) setWorkspacePath(res.path)
   }
 
+  // ── Snippet helpers ────────────────────────────────────────────────────────
+
+  const handleAddSnippet = useCallback(() => {
+    const start = Number.parseInt(snippetStart)
+    const end = Number.parseInt(snippetEnd)
+    const file = snippetFile || Object.keys(codeFiles || {})[0] || ''
+    if (!file || Number.isNaN(start) || Number.isNaN(end) || start < 1 || end < start) return
+    setCodeSnippets((prev) => [
+      ...prev,
+      { id: `snip-${Date.now()}`, file, startLine: start, endLine: end },
+    ])
+    setSnippetStart('')
+    setSnippetEnd('')
+    setShowSnippetPicker(false)
+  }, [snippetFile, snippetStart, snippetEnd, codeFiles])
+
+  const handleRemoveSnippet = useCallback((id: string) => {
+    setCodeSnippets((prev) => prev.filter((s) => s.id !== id))
+  }, [])
+
   // ── Send message ───────────────────────────────────────────────────────────
 
   const handleSend = useCallback(async () => {
     const text = input.trim()
-    if (!text || isRunningRef.current || !selectedProviderId || !selectedModelId || !workspacePath) return
+    if (!text || isRunningRef.current || !selectedProviderId || !selectedModelId || !workspacePath)
+      return
+
+    // Build agent message: prepend any attached code snippets
+    let agentMessage = text
+    if (codeSnippets.length > 0 && codeFiles) {
+      const blocks = codeSnippets
+        .map((s) => {
+          const lines = (codeFiles[s.file] || '').split('\n')
+          const content = lines.slice(s.startLine - 1, s.endLine).join('\n')
+          const lang = s.file.endsWith('.jsx') ? 'jsx' : 'js'
+          return `[${s.file} — lines ${s.startLine}–${s.endLine}]\n\`\`\`${lang}\n${content}\n\`\`\``
+        })
+        .join('\n\n')
+      agentMessage = `${blocks}\n\n${text}`
+    }
 
     // Guard synchronously via ref to prevent double-call before React re-render
     isRunningRef.current = true
     setInput('')
+    setCodeSnippets([])
+    setShowSnippetPicker(false)
     setIsRunning(true)
     startTimeRef.current = Date.now()
 
@@ -562,7 +664,7 @@ export default function AIAgentSidebar({
       workspacePath,
       projectContext,
       conversationHistory: history,
-      userMessage: text,
+      userMessage: agentMessage,
     })
 
     if (!res.success) {
@@ -583,13 +685,14 @@ export default function AIAgentSidebar({
     requestIdRef.current = res.requestId || null
   }, [
     input,
-    isRunning,
     selectedProviderId,
     selectedModelId,
     workspacePath,
     projectContext,
     messages,
     onFilesChanged,
+    codeSnippets,
+    codeFiles,
   ])
 
   // ── Stop ───────────────────────────────────────────────────────────────────
@@ -653,7 +756,11 @@ export default function AIAgentSidebar({
 
   return (
     <div className="flex flex-col h-full w-full bg-[var(--color-canvas)] border-l border-[var(--color-hairline)] text-[var(--color-ink)]">
-      <style>{`@keyframes thinking-bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}`}</style>
+      <style>
+        {
+          '@keyframes thinking-bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}'
+        }
+      </style>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--color-hairline)] shrink-0">
         <Bot size={15} className="text-[var(--color-primary)] shrink-0" />
@@ -728,12 +835,7 @@ export default function AIAgentSidebar({
             </p>
             {workspacePath && (
               <div className="flex flex-wrap gap-1.5 justify-center mt-1">
-                {[
-                  'List all files',
-                  'Read README',
-                  'Find all TODO comments',
-                  'Explain the project structure',
-                ].map((s) => (
+                {['List all files', 'Explain the project structure'].map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -779,16 +881,16 @@ export default function AIAgentSidebar({
               )}
 
               {/* Activity badge — below tool steps while a tool is still pending and no text yet */}
-              {isCurrentStreaming && pendingSteps.some((s) => s.result === undefined) && !streamingText && (
-                <ActivityBadge steps={pendingSteps} hasText={false} />
-              )}
+              {isCurrentStreaming &&
+                pendingSteps.some((s) => s.result === undefined) &&
+                !streamingText && <ActivityBadge steps={pendingSteps} hasText={false} />}
 
               {/* Text bubble */}
               {(isCurrentStreaming ? streamingText : msg.content) || msg.error ? (
                 <div
                   className={`max-w-[92%] px-3 py-2 rounded-[var(--radius-md)] text-[13px] leading-relaxed wrap-break-word ${
                     msg.role === 'user'
-                      ? 'bg-[var(--color-primary)] text-black'
+                      ? 'bg-gray-700 text-white'
                       : msg.error
                         ? 'bg-red-950/30 border border-red-900/50 text-red-300'
                         : 'bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] text-[var(--color-ink)]'
@@ -831,7 +933,78 @@ export default function AIAgentSidebar({
       </div>
 
       {/* ── Input bar ──────────────────────────────────────────────────────── */}
-      <div className="border-t border-[var(--color-hairline)] px-3 py-2 shrink-0">
+      <div className="border-t border-(--color-hairline) px-3 py-2 shrink-0">
+        {/* Snippet picker */}
+        {showSnippetPicker && codeFiles && Object.keys(codeFiles).length > 0 && (
+          <div className="mb-2 flex items-center gap-1.5 p-2 rounded-sm bg-(--color-canvas-soft) border border-(--color-hairline)">
+            <select
+              value={snippetFile || Object.keys(codeFiles)[0]}
+              onChange={(e) => setSnippetFile(e.target.value)}
+              className="text-[11px] bg-(--color-canvas) border border-(--color-hairline) text-(--color-ink) rounded-sm px-1.5 py-1 outline-none cursor-pointer"
+            >
+              {Object.keys(codeFiles).map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] text-(--color-mute)">lines</span>
+            <input
+              type="number"
+              min={1}
+              value={snippetStart}
+              onChange={(e) => setSnippetStart(e.target.value)}
+              placeholder="from"
+              className="w-14 text-[11px] bg-(--color-canvas) border border-(--color-hairline) text-(--color-ink) rounded-sm px-1.5 py-1 outline-none [appearance:textfield]"
+            />
+            <span className="text-[11px] text-(--color-mute)">–</span>
+            <input
+              type="number"
+              min={1}
+              value={snippetEnd}
+              onChange={(e) => setSnippetEnd(e.target.value)}
+              placeholder="to"
+              onKeyDown={(e) => e.key === 'Enter' && handleAddSnippet()}
+              className="w-14 text-[11px] bg-(--color-canvas) border border-(--color-hairline) text-(--color-ink) rounded-sm px-1.5 py-1 outline-none [appearance:textfield]"
+            />
+            <button
+              type="button"
+              onClick={handleAddSnippet}
+              className="text-[11px] px-2 py-1 rounded-sm bg-(--color-primary) text-black font-medium cursor-pointer hover:opacity-90"
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSnippetPicker(false)}
+              className="ml-auto text-(--color-mute) hover:text-(--color-ink) cursor-pointer"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
+
+        {/* Snippet chips */}
+        {codeSnippets.length > 0 && (
+          <div className="mb-1.5 flex flex-wrap gap-1">
+            {codeSnippets.map((s) => (
+              <span
+                key={s.id}
+                className="flex items-center gap-1 text-[11px] font-mono px-1.5 py-0.5 rounded-xs bg-(--color-primary)/10 border border-(--color-primary)/30 text-(--color-primary)"
+              >
+                {s.file.split('/')[0]}:{s.startLine}–{s.endLine}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveSnippet(s.id)}
+                  className="cursor-pointer opacity-60 hover:opacity-100"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -848,7 +1021,7 @@ export default function AIAgentSidebar({
             disabled={isRunning || !workspacePath}
             rows={1}
             style={{ resize: 'none', minHeight: '60px', maxHeight: '120px' }}
-            className="flex-1 bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-[var(--radius-md)] px-3 py-2 text-[13px] text-[var(--color-ink)] placeholder:text-[var(--color-mute)] outline-none focus:border-[var(--color-primary)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 bg-(--color-canvas-soft) border border-(--color-hairline) rounded-md px-3 py-2 text-[13px] text-(--color-ink) placeholder:text-(--color-mute) outline-none focus:border-(--color-primary) transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             onInput={(e) => {
               const t = e.currentTarget
               t.style.height = 'auto'
@@ -870,16 +1043,34 @@ export default function AIAgentSidebar({
               onClick={handleSend}
               disabled={!canSend}
               title="Send (Enter)"
-              className="shrink-0 flex items-center justify-center w-8 h-8 rounded-[var(--radius-md)] bg-[var(--color-primary)] hover:opacity-90 text-black cursor-pointer transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+              className="shrink-0 flex items-center justify-center w-8 h-8 rounded-[var(--radius-md)] bg-(--color-primary) hover:opacity-90 text-black cursor-pointer transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Send size={13} />
             </button>
           )}
         </div>
-        <p className="text-[10px] text-[var(--color-mute)] mt-1">
-          Enter to send · Shift+Enter for newline
-        </p>
+        <div className="flex items-center justify-between mt-1">
+          <p className="text-[10px] text-(--color-mute)">Enter to send · Shift+Enter for newline</p>
+          {codeFiles && Object.keys(codeFiles).length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowSnippetPicker((v) => !v)}
+              title="Attach code lines"
+              className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-xs cursor-pointer transition-colors ${
+                showSnippetPicker || codeSnippets.length > 0
+                  ? 'text-(--color-primary) bg-(--color-primary)/10'
+                  : 'text-(--color-mute) hover:text-(--color-ink)'
+              }`}
+            >
+              <Code size={11} />
+              Add lines
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
-}
+  },
+)
+
+export default AIAgentSidebar

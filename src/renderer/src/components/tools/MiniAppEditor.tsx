@@ -1,4 +1,4 @@
-import Editor, { type BeforeMount, DiffEditor, type DiffOnMount } from '@monaco-editor/react'
+import Editor, { type BeforeMount, DiffEditor, type DiffOnMount, type OnMount } from '@monaco-editor/react'
 import {
   ArrowLeft,
   ChevronDown,
@@ -19,7 +19,7 @@ import { InputNumber } from '../ui/InputNumber'
 import { Select } from '../ui/Select'
 import { Switch } from '../ui/Switch'
 import { toast } from '../ui/Toast'
-import AIAgentSidebar from './AIAgentSidebar'
+import AIAgentSidebar, { type AIAgentSidebarHandle } from './AIAgentSidebar'
 import MiniAppRenderer from './MiniAppRenderer'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -150,36 +150,41 @@ export default function MiniAppEditor() {
   const [showAIAgent, setShowAIAgent] = useState(true)
   const [miniAppWorkspacePath, setMiniAppWorkspacePath] = useState('')
   const [agentSidebarWidth, setAgentSidebarWidth] = useState(320)
+  const agentSidebarRef = useRef<AIAgentSidebarHandle>(null)
+  const activeTabRef = useRef<CodeTab>('frontend')
   const isResizingRef = useRef(false)
   const resizeStartXRef = useRef(0)
   const resizeStartWidthRef = useRef(320)
 
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    isResizingRef.current = true
-    resizeStartXRef.current = e.clientX
-    resizeStartWidthRef.current = agentSidebarWidth
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      isResizingRef.current = true
+      resizeStartXRef.current = e.clientX
+      resizeStartWidthRef.current = agentSidebarWidth
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
 
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!isResizingRef.current) return
-      const delta = resizeStartXRef.current - ev.clientX
-      const next = Math.min(600, Math.max(240, resizeStartWidthRef.current + delta))
-      setAgentSidebarWidth(next)
-    }
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!isResizingRef.current) return
+        const delta = resizeStartXRef.current - ev.clientX
+        const next = Math.min(600, Math.max(240, resizeStartWidthRef.current + delta))
+        setAgentSidebarWidth(next)
+      }
 
-    const onMouseUp = () => {
-      isResizingRef.current = false
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-    }
+      const onMouseUp = () => {
+        isResizingRef.current = false
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+      }
 
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-  }, [agentSidebarWidth])
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    },
+    [agentSidebarWidth],
+  )
 
   // AI Assistant Sidebar state & code proposal handlers (kept for legacy diff-accept UI)
   const [proposedChanges, setProposedChanges] = useState<{
@@ -314,6 +319,11 @@ export default function MiniAppEditor() {
     }
   }
 
+  // Keep activeTabRef in sync so Monaco command callback always reads the latest tab
+  useEffect(() => {
+    activeTabRef.current = activeTab
+  }, [activeTab])
+
   // Reset diff navigation when tab changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset on activeTab change
   useEffect(() => {
@@ -321,6 +331,20 @@ export default function MiniAppEditor() {
     setCurrentDiffIndex(-1)
     diffEditorRef.current = null
   }, [activeTab])
+
+  // Register Cmd+L on Monaco editor: add selected lines as snippet to AI sidebar
+  const handleEditorMount: OnMount = useCallback((editor, monaco) => {
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => {
+      const selection = editor.getSelection()
+      if (!selection) return
+      const tab = activeTabRef.current
+      const file =
+        tab === 'frontend' ? 'frontend/index.jsx'
+        : tab === 'backend' ? 'backend/index.js'
+        : 'panel/index.jsx'
+      agentSidebarRef.current?.addSnippet(file, selection.startLineNumber, selection.endLineNumber)
+    })
+  }, [])
 
   const handleAcceptTab = (tab: 'frontend' | 'backend' | 'panel') => {
     if (!proposedChanges || !pendingProposals) return
@@ -958,6 +982,7 @@ export default function MiniAppEditor() {
                     onChange={handleCodeChange}
                     options={MONACO_OPTIONS}
                     beforeMount={handleEditorBeforeMount}
+                    onMount={handleEditorMount}
                   />
                 </div>
               )}
@@ -1021,8 +1046,12 @@ export default function MiniAppEditor() {
               className="w-1 shrink-0 cursor-col-resize hover:bg-[var(--color-primary)] active:bg-[var(--color-primary)] transition-colors bg-transparent group relative"
               title="Drag to resize"
             />
-            <div style={{ width: agentSidebarWidth, minWidth: agentSidebarWidth }} className="shrink-0 flex flex-col h-full overflow-hidden">
+            <div
+              style={{ width: agentSidebarWidth, minWidth: agentSidebarWidth }}
+              className="shrink-0 flex flex-col h-full overflow-hidden"
+            >
               <AIAgentSidebar
+                ref={agentSidebarRef}
                 storageKey={appId}
                 initialWorkspacePath={miniAppWorkspacePath}
                 projectContext={
@@ -1030,6 +1059,11 @@ export default function MiniAppEditor() {
                     ? `Mini-app: ${formName}\nDescription: ${formDescription}\nFiles: frontend/index.jsx (React UI), backend/index.js (Node.js backend), panel/index.jsx (optional settings panel)`
                     : undefined
                 }
+                codeFiles={{
+                  'frontend/index.jsx': formFrontendCode,
+                  'backend/index.js': formBackendCode,
+                  ...(formPanelCode ? { 'panel/index.jsx': formPanelCode } : {}),
+                }}
                 onFilesChanged={handleAgentFilesChanged}
                 onClose={() => setShowAIAgent(false)}
               />

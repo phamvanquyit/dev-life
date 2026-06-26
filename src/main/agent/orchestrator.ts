@@ -120,7 +120,15 @@ function makeSender(senderWebContentsId: number) {
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 export async function runAgent(opts: AgentRunOptions): Promise<void> {
-  const { requestId, providerId, modelId, workspacePath, projectContext, abortSignal, senderWebContentsId } = opts
+  const {
+    requestId,
+    providerId,
+    modelId,
+    workspacePath,
+    projectContext,
+    abortSignal,
+    senderWebContentsId,
+  } = opts
   const send = makeSender(senderWebContentsId)
 
   const db = getDb()
@@ -420,7 +428,11 @@ async function streamOpenAI(opts: StreamLlmOpts): Promise<void> {
         }
 
         const finish = p.choices?.[0]?.finish_reason
-        if (!toolCallsFired && (finish === 'tool_calls' || finish === 'stop') && Object.keys(tcAccum).length > 0) {
+        if (
+          !toolCallsFired &&
+          (finish === 'tool_calls' || finish === 'stop') &&
+          Object.keys(tcAccum).length > 0
+        ) {
           toolCallsFired = true
           for (const [, tc] of Object.entries(tcAccum)) {
             tc.args = tryParseJson((tc as any)._rawArgs || '{}')
