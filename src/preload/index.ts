@@ -86,6 +86,41 @@ const api = {
   ): Promise<{ backendCode: string; frontendCode: string; panelCode: string | null }> =>
     ipcRenderer.invoke('miniapp:read-code', id),
 
+  getMiniAppGuide: (): Promise<string> => ipcRenderer.invoke('miniapp:get-guide'),
+  getMiniAppWorkspacePath: (id: string): Promise<string> =>
+    ipcRenderer.invoke('miniapp:workspace-path', id),
+
+  getMiniAppAiAssistant: (
+    appId: string,
+  ): Promise<{
+    providerId: string
+    modelId: string
+    chatHistory: any[]
+  }> => ipcRenderer.invoke('miniapp:get-ai-assistant', appId),
+
+  saveMiniAppAiAssistant: (
+    appId: string,
+    data: {
+      providerId: string
+      modelId: string
+      chatHistory: any[]
+    },
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('miniapp:save-ai-assistant', appId, data),
+
+  callMiniAppAgent: (data: {
+    appId: string
+    appName: string
+    appDescription: string
+    appIcon: string
+    appVersion: string
+    providerId: string
+    modelId: string
+    messages: { role: 'user' | 'assistant'; content: string }[]
+    requestId: string
+  }): Promise<{ success: boolean; proposedChanges?: any; responseText?: string; error?: string }> =>
+    ipcRenderer.invoke('miniapp:call-agent', data),
+
   // LLM Providers
   listLlmProviders: (): Promise<{
     success: boolean
@@ -105,6 +140,80 @@ const api = {
     providerId: string,
   ): Promise<{ success: boolean; models?: any[]; error?: string }> =>
     ipcRenderer.invoke('llm:get-models', providerId),
+  callLlmCompletion: (data: {
+    providerId: string
+    modelId: string
+    systemPrompt: string
+    messages: { role: 'user' | 'assistant'; content: string }[]
+    temperature?: number
+  }): Promise<{ success: boolean; text?: string; error?: string }> =>
+    ipcRenderer.invoke('llm:call-completion', data),
+  formatCode: (code: string): Promise<{ success: boolean; formatted?: string; error?: string }> =>
+    ipcRenderer.invoke('llm:format-code', code),
+
+  // LLM Streaming
+  callLlmCompletionStream: (data: {
+    providerId: string
+    modelId: string
+    systemPrompt: string
+    messages: { role: 'user' | 'assistant'; content: string }[]
+    temperature?: number
+    tools?: any[]
+  }): Promise<{ success: boolean; requestId?: string; error?: string }> =>
+    ipcRenderer.invoke('llm:call-completion-stream', data),
+  cancelLlmStream: (requestId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('llm:cancel-stream', requestId),
+  onLlmStreamChunk: (
+    callback: (chunk: {
+      requestId: string
+      type: 'token' | 'tool_call' | 'done' | 'error'
+      token?: string
+      toolCall?: { id: string; name: string; arguments: string }
+      fullText?: string
+      error?: string
+    }) => void,
+  ) => {
+    const handler = (_event: Electron.IpcRendererEvent, chunk: any) => callback(chunk)
+    ipcRenderer.on('llm:stream-chunk', handler)
+    return () => ipcRenderer.removeListener('llm:stream-chunk', handler)
+  },
+
+  // AI Coding Agent
+  sendAgentMessage: (data: {
+    requestId?: string
+    providerId: string
+    modelId: string
+    workspacePath: string
+    projectContext?: string
+    conversationHistory: { role: 'user' | 'assistant'; content: string }[]
+    userMessage: string
+  }): Promise<{ success: boolean; requestId?: string; error?: string }> =>
+    ipcRenderer.invoke('agent:send-message', data),
+
+  cancelAgent: (requestId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('agent:cancel', requestId),
+
+  openDirectoryDialog: (): Promise<{ success: boolean; path?: string }> =>
+    ipcRenderer.invoke('agent:open-directory'),
+
+  onAgentEvent: (
+    callback: (ev: {
+      requestId: string
+      type: 'token' | 'tool-start' | 'tool-result' | 'done' | 'error'
+      token?: string
+      toolName?: string
+      toolArgs?: Record<string, any>
+      toolResult?: string
+      toolSuccess?: boolean
+      fullText?: string
+      filesChanged?: boolean
+      error?: string
+    }) => void,
+  ) => {
+    const handler = (_event: Electron.IpcRendererEvent, ev: any) => callback(ev)
+    ipcRenderer.on('agent:event', handler)
+    return () => ipcRenderer.removeListener('agent:event', handler)
+  },
 
   // Config persistence
   getConfig: (key: string): Promise<string | null> => ipcRenderer.invoke('config:get', key),

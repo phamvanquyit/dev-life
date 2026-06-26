@@ -366,6 +366,40 @@ All accessed via \`ctx.ui.*\`. Available components:
 | \`--radius-md\` | 8px | Cards |
 | \`--radius-pill\` | 9999px | Status tags |
 
+### ❌ BANNED Tailwind Color Classes
+
+**Never use any of these** — they break the dark theme:
+
+\`\`\`
+// ❌ BANNED — do NOT use any Tailwind named colors:
+text-white  text-black  text-gray-*  text-zinc-*  text-slate-*  text-neutral-*
+bg-white    bg-black    bg-gray-*    bg-zinc-*    bg-slate-*    bg-neutral-*
+border-gray-*  border-zinc-*  border-slate-*
+text-blue-*  text-green-*  text-red-*  text-yellow-*  (use CSS vars for semantic colors)
+
+// ✅ CORRECT — always use CSS variable utilities:
+text-[var(--color-ink)]
+text-[var(--color-body)]
+text-[var(--color-mute)]
+bg-[var(--color-canvas)]
+bg-[var(--color-canvas-soft)]
+border-[var(--color-hairline)]
+\`\`\`
+
+### Typography Scale
+
+Always follow this hierarchy — never deviate from it:
+
+\`\`\`
+Page / section title:  text-sm font-semibold text-[var(--color-ink)]
+Card title:            text-[13px] font-semibold text-[var(--color-ink)]
+Body text:             text-sm text-[var(--color-body)]
+Secondary / label:     text-xs text-[var(--color-body)]
+Caption / hint:        text-xs text-[var(--color-mute)]
+Large metric/number:   text-xl font-bold text-[var(--color-ink-strong)]
+Code / mono:           text-xs font-mono text-[var(--color-ink)]
+\`\`\`
+
 ### Styling with Tailwind + CSS Variables
 
 \`\`\`html
@@ -375,13 +409,34 @@ All accessed via \`ctx.ui.*\`. Available components:
   <p className="text-xs text-[var(--color-mute)]">Description</p>
 </div>
 
-<!-- Primary button -->
-<button className="h-9 px-4 text-[13px] font-semibold bg-[var(--color-primary)] text-[var(--color-on-primary)] border-none rounded-[var(--radius-sm)] cursor-pointer hover:opacity-90">
-  Click
-</button>
+<!-- Stat / metric card -->
+<div className="bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-[var(--radius-md)] p-4">
+  <p className="text-xs text-[var(--color-mute)] mb-1">Label</p>
+  <p className="text-xl font-bold text-[var(--color-ink-strong)]">1,234</p>
+</div>
 
-<!-- Input -->
-<input className="w-full h-9 px-3 text-sm bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-[var(--radius-sm)] text-[var(--color-ink)] outline-none placeholder:text-[var(--color-mute)] focus:border-[var(--color-primary)]" />
+<!-- Section header with action -->
+<div className="flex items-center justify-between mb-4">
+  <h2 className="text-sm font-semibold text-[var(--color-ink)]">Section Title</h2>
+  <ui.Button size="small">Action</ui.Button>
+</div>
+
+<!-- List row -->
+<div className="flex items-center gap-3 py-2.5 px-3 bg-[var(--color-canvas-soft)] border border-[var(--color-hairline)] rounded-[var(--radius-md)] hover:border-[rgba(255,255,255,0.1)] transition-colors">
+  <span className="flex-1 text-sm text-[var(--color-ink)]">Label</span>
+  <span className="text-xs text-[var(--color-mute)]">Meta</span>
+</div>
+\`\`\`
+
+### Common Spacing Patterns
+
+\`\`\`
+Root container:         p-6 (always — never flush to edges)
+Between sections:       mb-6 or gap-6
+Between cards in grid:  gap-3 or gap-4
+Between list items:     gap-1.5 or gap-2
+Inside card padding:    p-4
+Inline icon + text gap: gap-2
 \`\`\`
 
 **Design rules:** Dark canvas only (#101010). Hairline borders, no shadows. Green accent for CTAs only. 6px radius for buttons, 8px for cards.
